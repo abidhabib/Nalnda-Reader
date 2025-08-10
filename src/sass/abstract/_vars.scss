@@ -1,0 +1,50 @@
+/*	FONT SIZES	*/
+$text-default-size: 1.6rem;
+
+/* COLORS */
+
+/* Brand Colors */
+$color-primary          : hsl(29, 98%, 64%);
+$color-primary-dark     : hsl(11, 98%, 64%);
+$color-primary-light    : hsl(29, 98%, 68%);
+
+$color-secondary        : hsl(218, 84%, 64%);
+$color-secondary-dark   : hsl(218, 84%, 50%);
+$color-secondary-light  : hsl(218, 84%, 68%);
+
+/* Accent Colors */ 
+$color-blue             : hsl(218, 84%, 64%);
+$color-blue-dark        : hsl(218, 84%, 50%);
+$color-blue-light       : hsl(218, 84%, 68%);
+
+$color-green            : hsl(145, 50%, 55%);
+$color-green-dark       : hsl(145, 50%, 40%);
+$color-green-light      : hsl(145, 50%, 60%);
+
+$color-red              : hsl(345, 98%, 64%);
+$color-red-dark         : hsl(345, 98%, 50%);
+$color-red-light        : hsl(345, 98%, 68%);
+
+$color-yellow           : hsl( 40, 98%, 64%);
+$color-yellow-dark      : hsl( 40, 98%, 50%);
+$color-yellow-light     : hsl( 40, 98%, 68%);
+
+/* Neutral Colors */
+$color-neutral-100      : hsl(218, 18%, 98%);
+$color-neutral-200      : hsl(218, 16%, 96%);
+$color-neutral-300      : hsl(218, 16%, 80%);
+$color-neutral-400      : hsl(218, 14%, 70%);
+$color-neutral-500      : hsl(218, 12%, 60%);
+$color-neutral-600      : hsl(218, 14%, 40%);
+$color-neutral-700      : hsl(218, 16%, 28%);
+$color-neutral-800      : hsl(218, 16%, 16%);
+$color-neutral-900      : hsl(218, 18%, 08%);
+    
+$color-black            : hsl(0,0%,  0%);
+$color-white            : hsl(0,0%,100%);
+
+
+/* SHADOW */
+$shadow-sm : 0 0 0.25rem rgba($color-black,0.3) ;
+$shadow-md : 0 0 0.75rem rgba($color-black,0.2) ;
+$shadow-lg : 0 0 1.50rem rgba($color-black,0.2) ;

@@ -1,0 +1,60 @@
+.number-input {
+    display: flex ;
+    align-items: center ;
+    background-color: $color-neutral-100;
+    border-radius: 0.8rem;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba($color-black, 0.05);
+
+    &__button {
+        width: 4.5rem ;
+        height: 4.5rem ;
+        display: flex ;
+        align-items: center ;
+        justify-content: center ;
+        border: none;
+        background-color: transparent;
+        color: $color-neutral-600 ;
+        cursor: pointer ;
+        transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+        &:hover {
+            background-color: $color-secondary ;
+            color: $color-white ;
+            transform: scale(1.05);
+        }
+
+        &:active {
+            transform: scale(0.95);
+        }
+    }
+
+    &__value {
+        width: 8ch ;
+        text-align: center ;
+        font-weight: 600 ;
+        color: $color-neutral-800 ;
+        padding: 1rem 0.5rem;
+        background-color: $color-white;
+        border: none;
+        font-size: 1.4rem;
+    }
+}
+
+[data-theme="dark"] .number-input {
+    background-color: $color-neutral-800;
+    
+    &__button {
+        color: $color-neutral-400 ;
+
+        &:hover {
+            background-color: $color-secondary ;
+            color: $color-white ;
+        }
+    }
+
+    &__value { 
+        color: $color-white; 
+        background-color: $color-neutral-900;
+    }
+}

@@ -1,0 +1,165 @@
+.annotation-context-menu {
+	position: absolute; /* Added for positioning */
+	background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border: 1px solid rgba(0, 0, 0, 0.1);
+	border-radius: 1.6rem;
+	padding: 2rem;
+	min-width: 32rem;
+	max-width: 40rem;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+	z-index: 1002;
+  
+	.context-menu-header { /* Renamed from __header */
+	  display: flex;
+	  align-items: center;
+	  justify-content: space-between;
+	  margin-bottom: 2rem;
+	  padding-bottom: 1rem;
+	  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  
+	  .context-menu-icon { /* Added for icon styling */
+		font-size: 1.8rem;
+		color: #333;
+		margin-right: 1rem;
+	  }
+
+	  span { /* For the "Highlight" text */
+		font-size: 1.8rem;
+		font-weight: 600;
+		color: #333;
+		margin: 0;
+	  }
+	}
+  
+	.close-button { /* Renamed from __close */
+	  width: 3rem;
+	  height: 3rem;
+	  border-radius: 50%;
+	  background: rgba(0, 0, 0, 0.05);
+	  font-size: 2rem;
+	  font-weight: 300;
+	  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+	  border: none; /* Ensure no default border */
+	  cursor: pointer; /* Ensure it's clickable */
+	  display: flex; /* Center icon */
+	  align-items: center;
+	  justify-content: center;
+  
+	  &:hover {
+		background: rgba(0, 0, 0, 0.1);
+		transform: scale(1.1);
+	  }
+	}
+  
+	.color-options { /* Renamed from __color-grid */
+	  display: grid;
+	  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); /* Adjusted for smaller buttons */
+	  gap: 1rem;
+	  margin-bottom: 0; /* No margin bottom as per original CSS */
+	}
+  
+	.color-option { /* Renamed from __color-btn */
+	  width: 40px; /* Fixed width */
+	  height: 40px; /* Fixed height */
+	  border: 2px solid rgba(0, 0, 0, 0.1); /* Adjusted border */
+	  border-radius: 50%; /* Circular buttons */
+	  cursor: pointer;
+	  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+	  display: flex; /* Center content if any */
+	  align-items: center;
+	  justify-content: center;
+	  padding: 0; /* Remove padding */
+  
+	  &:hover {
+		transform: scale(1.1); /* Slightly larger scale for hover */
+		box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); /* Adjusted shadow */
+	  }
+  
+	  &.selected { /* Added for selected state */
+		border-color: currentColor; /* Border color matches highlight color */
+		transform: scale(1.15); /* Larger scale for selected */
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+	  }
+	}
+  }
+  
+  // Dark theme
+  [data-theme="dark"] .annotation-context-menu {
+	background: linear-gradient(135deg, rgba(26, 26, 26, 0.95) 0%, rgba(26, 26, 26, 0.9) 100%);
+	border-color: rgba(255, 255, 255, 0.1);
+  
+	.context-menu-header {
+	  border-bottom-color: rgba(255, 255, 255, 0.1);
+  
+	  .context-menu-icon, span {
+		color: #fff;
+	  }
+	}
+  
+	.close-button {
+	  background: rgba(255, 255, 255, 0.1);
+	  color: #fff;
+  
+	  &:hover {
+		background: rgba(255, 255, 255, 0.15);
+	  }
+	}
+  
+	.color-option {
+	  border-color: rgba(255, 255, 255, 0.1);
+	}
+  }
+  
+  // Sepia theme
+  [data-theme="sepia"] .annotation-context-menu {
+	background: linear-gradient(135deg, rgba(244, 241, 234, 0.95) 0%, rgba(244, 241, 234, 0.9) 100%);
+	border-color: rgba(92, 75, 55, 0.1);
+  
+	.context-menu-header {
+	  border-bottom-color: rgba(92, 75, 55, 0.1);
+  
+	  .context-menu-icon, span {
+		color: #5c4b37;
+	  }
+	}
+  
+	.close-button {
+	  background: rgba(92, 75, 55, 0.1);
+	  color: #5c4b37;
+  
+	  &:hover {
+		background: rgba(92, 75, 55, 0.15);
+	  }
+	}
+  
+	.color-option {
+	  border-color: rgba(92, 75, 55, 0.1);
+	}
+  }
+
+/* --- Robust positioning + stacking --- */
+.annotation-context-menu {
+  position: fixed; /* render via portal => fixed is safest */
+  inset: auto;     /* make sure top/left apply */
+  z-index: 100000; /* outrank headers/sidebars/readers */
+  will-change: left, top, transform;
+  pointer-events: auto;
+  user-select: none;
+}
+
+/* Optional: reduce minimum width a bit to help on small screens
+   (keep or tweak as you like) */
+/*
+.annotation-context-menu {
+  min-width: 28rem;
+}
+*/
+
+/* If your reader container accidentally disables selection globally,
+   ensure the menu stays clickable */
+.annotation-context-menu * {
+  pointer-events: auto;
+}
+

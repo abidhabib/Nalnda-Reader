@@ -1,0 +1,53 @@
+
+.dropdown {
+	position: relative ;
+
+	&__options {
+		position: absolute ;
+		top: calc(100% + 1rem) ;
+		right: 0 ;
+		background-color: $color-white ;
+		padding: 1rem ;
+		border-radius: 0.4rem ;
+		filter: drop-shadow( 0 0 1rem rgba($color-black,0.2));
+		transform: scale(0);
+		opacity: 0 ;
+		color: $color-black ;
+		transition: all 200ms cubic-bezier(0,1.2,0.3,1.2) ;
+		transform-origin: 100% 0% ;
+		cursor: pointer ;
+		min-width:24rem ;
+		
+		&--open {
+			transform: scale(1);
+			opacity: 1 ;
+			pointer-events: all ;
+		}
+
+		&__item {
+			padding: 2rem ;
+			border-radius: 0.4rem ;
+			color: $color-neutral-500 ;
+
+			&:hover {
+				background-color: $color-neutral-200;
+				color: $color-neutral-900 ;
+			}
+		}
+	}
+
+	&--open {
+		z-index: 100 ;
+		cursor: default ;
+	}
+
+	&--open > &__backdrop {
+		position: fixed ;
+		top: 0 ;
+		left: 0 ;
+		width: 100vw ;
+		height: 100vh ;
+		z-index: -1 ;
+	}
+
+}

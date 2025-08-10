@@ -1,0 +1,69 @@
+*,
+*::after,
+*::before{
+	margin:0;
+	padding:0;
+	box-sizing: border-box ;
+	-webkit-tap-highlight-color : transparent ;
+}
+
+html{ 
+	font-size: 62.5%;
+	scroll-behavior: smooth;
+	color: $color-black;
+	background-color: $color-white ;
+	user-select: none;
+	overflow-x: hidden;
+	@include respond(desBig){ font-size: 62.5% ; }
+	@include respond(desk){ font-size: 50% ; }
+	@include respond(retinaBig){ font-size: 62.5% ; }
+	@include respond(tabLand){ font-size: 56.25% ; }
+	@include respond(tabPort){ font-size: 50% ; }
+	@include respond(phone){ font-size: 50% ; }
+}
+
+body{ 
+	box-sizing: border-box; 
+	overflow-x: hidden ;
+	max-width: 100% ;
+}
+
+main{ min-height: 100vh; }
+
+textarea, input[type="text"]{
+	transition: box-shadow 0.1s ease-in-out;
+	border: none ;
+	box-shadow: 0 0 0 0.2rem $color-neutral-200 ; 
+
+	&:focus {
+		outline: none !important;
+		box-shadow: 0 0 0 0.2rem $color-primary;
+	}
+
+	&::placeholder {
+		color: $color-neutral-500 ;
+	}
+}
+
+table{
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 2rem;
+	margin-bottom: 4rem;
+}
+
+input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+
+a{
+	&:not(:visited){color: $color-primary}
+	&:visited{color: $color-secondary}
+}
+
+p{
+	&:not(:last-child){margin-bottom: 2.4rem;}
+}
+
+.web3modal-modal-lightbox {
+	z-index: 1000 !important ;
+}

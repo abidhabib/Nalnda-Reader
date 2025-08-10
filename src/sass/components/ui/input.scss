@@ -1,0 +1,161 @@
+.input{
+	position: relative;
+
+	&__modal{
+		width: 50vw;
+		min-height: 50vh;
+		max-height: 90vh;
+		display: flex;
+		flex-direction: column;
+
+		@include respond(tabPort){width: 90vw;}
+
+		&__head{ margin-bottom: 2.4rem; }
+
+		&__values{
+			margin-top: 2.4rem;
+			display: flex;
+			flex-direction: row;
+			align-items: flex-start;
+			justify-content: flex-start;
+			flex-wrap: wrap;
+
+			&__item{
+				min-width: 8rem;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 0.4rem 1.2rem;
+				background-color: rgba($color-black, 0.08);
+				border-radius: 100rem;
+				margin: 0 1.2rem 1.2rem 0;
+				transition: all 0.4s ease-in-out;
+
+				&--active{
+					background-color: $color-secondary;
+					color: $color-white;
+				}
+			}
+		}
+
+		&__space{ flex: 1; }
+
+		&__actions{
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: flex-end;
+		}
+	}
+
+	&__form{ padding: 4rem 0; }
+
+	&__group{
+		position: relative;
+
+		&__field{
+			border-radius: 0.8rem;
+			border-color: rgba($color-black, 0.08);
+			background-color: $color-white;
+			padding: 1.5rem ;
+			width: 100%;
+			transition: all 150ms ease-in-out;
+			position: relative;
+
+			&--text{
+				&:focus, &:not(:focus):valid{
+					~ .input__group__label{ top: 5% !important; }
+				}
+			}
+
+			&__list{
+				transition: all 0.4s ease-in-out;
+				background-color: $color-white;
+				z-index: -100;
+				opacity: 0;
+				position: absolute;
+				top: 5.6rem;
+				left: 0;
+				border-radius: 0 0 2rem 2rem;
+				box-shadow: 0 0.2rem 2.4rem rgba($color-black, 0.08);
+				border-color: $color-primary;
+				border-style: solid;
+				border-width: 0.1rem;
+				max-height: 24rem;
+				overflow-y: scroll;
+				width: 100%;
+
+				&__backdrop{
+					position: fixed;
+					height: 100vh;
+					width: 100vw;
+					top: 0;
+					left: 0;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					transition: all 0.4s ease-in-out;
+					z-index: -1;
+					opacity: 0;
+				}
+
+				&__item{
+					padding: 0.4rem 1.6rem;
+					&:not(:last-child){
+						border-bottom-color: rgba($color-black, 0.08);
+						border-bottom-width: 0.1rem;
+						border-bottom-style: solid;
+					}
+				}
+			}
+
+			&:focus{
+				border-color: $color-primary;
+
+				~ .input__group__field__list{
+					z-index: 100;
+					opacity: 1;
+	
+					~ .input__group__field__list__backdrop{
+						z-index: 50;
+						opacity: 1;
+						background-color: rgba($color-black, 0.04);
+					}
+				}
+			}
+
+			&--icon{ position: relative; }
+
+			&__icon{
+				opacity: 0.2;
+				position: absolute;
+				top: 50%;
+				right: 0%;
+				transform: translate(-1.6rem, -50%);
+				width: 2.4rem;
+				height: 2.4rem;
+				object-fit: contain;
+				transition: all 0.4s ease-in-out;
+			}
+			
+		}
+
+		&:not(:last-of-type){margin-bottom: 2.8rem;}
+	
+		&__label{
+			color: $color-neutral-700 ;
+			line-height: 1.5 ;
+
+			&--required::after {
+				content: "*";
+				color: hsl(350, 90%, 50%) ;
+			}
+		}
+
+		&__description {
+			color: $color-neutral-500 ;
+			margin-bottom: 1rem ;
+		}
+	}
+
+}

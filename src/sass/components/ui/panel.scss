@@ -1,0 +1,215 @@
+.panel {
+	color: $color-neutral-700 ;
+
+	&__toc {
+		padding: 1rem ;
+		&__item {
+			padding: 1.25rem 1.75rem ;
+			border-radius: 0.8rem ;
+			cursor: pointer ;
+			transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+			&:hover {
+				background-color: $color-neutral-200 ;
+				transform: translateX(4px);
+			}
+		}
+	}
+
+	&__annotation {
+		padding: 1rem ;
+		overflow-y: auto ;
+
+		&__item {
+			padding: 1.5rem ;
+			padding-bottom: 1rem ;
+			border-radius: 0.8rem ;
+			background-color: $color-neutral-200 ;
+			transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+			&:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 4px 12px rgba($color-black, 0.1);
+			}
+
+			&__container {
+				position: relative ;
+				display: flex ;
+				cursor: pointer ;
+			}
+
+			&__color {
+				border-radius: 0.4rem ;
+				width : 0.5rem ;
+				flex: 0 0 0.5rem ;
+				margin-right: 1rem ;
+			}
+
+			&__name {
+				flex: 1 ;
+				height: 100% ;
+			}
+
+			&>.button {
+				margin-top: 1rem ;
+				display: block ;
+				margin-left: auto ;
+			}
+		}
+
+		&__item + &__item {
+			margin-top: 1rem ;
+		}
+	}
+
+	&__customizer {
+		padding: 2rem ;
+
+		&__field {
+			&__label {
+				margin-bottom: 1.5rem ;
+				font-weight: 600;
+				color: $color-neutral-800;
+			}
+
+			&__input {
+				display: flex ;
+
+				&__chip{
+					width : 5.5rem ; 
+					height: 5.5rem ;
+					border-radius: 50% ;
+					display: flex ;
+					align-items: center ;
+					justify-content: center ;
+					font-size: 2rem ;
+					font-weight: 700 ;
+					box-shadow: 0 2px 8px rgba($color-black, 0.1);
+					cursor: pointer ;
+					transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+					border: 3px solid transparent;
+
+					&:hover {
+						transform: translateY(-2px);
+						box-shadow: 0 4px 16px rgba($color-black, 0.15);
+					}
+
+					&--selected {
+						border-color: $color-secondary;
+						transform: scale(1.1);
+						box-shadow: 0 4px 20px rgba($color-secondary, 0.3);
+					}
+				}
+
+				&__font {
+					flex: 1 ;
+					border: 2px solid $color-neutral-300 ;
+					display: flex ;
+					align-items: center ;
+					justify-content: center ;
+					flex-direction: column ;
+					padding: 2rem ;
+					color: $color-neutral-700 ;
+					cursor: pointer ;
+					border-radius: 0.8rem;
+					transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+					&__demo {
+						font-size: 3rem ; 
+						font-weight: 700 ;
+					}
+
+					&__name {
+						margin-top: 1rem ;
+						font-weight: 500 ;
+						text-align: center ;
+					}
+
+					&:hover {
+						background-color: $color-neutral-200 ;
+						color: $color-neutral-900 ;
+						transform: translateY(-2px);
+						box-shadow: 0 4px 12px rgba($color-black, 0.1);
+					}
+
+					&--selected {
+						border-color: $color-secondary ;
+						background-color: rgba($color-secondary, 0.1);
+						transform: scale(1.02);
+					}
+				}
+
+				>* + * {
+					margin-left: 1.5rem ;
+				}
+
+				&--fonts {
+					flex-wrap: wrap ;
+					gap: 1rem;
+				}
+
+				&--themes {
+					gap: 1rem;
+				}
+			}
+			
+		}
+
+		&__field + &__field {
+			margin-top: 3rem ;
+
+			@include respond(phone) {
+				margin-top: 2rem ;
+			}
+		}
+	}
+
+	&__empty {
+		text-align: center ; 
+		padding: 2rem ;
+		color: $color-neutral-500;
+	}
+}
+
+[data-theme="dark"] .panel {
+	color: $color-neutral-100 ; 
+
+	&__toc {
+		&__item {
+			&:hover {
+				background-color: $color-neutral-800 ;
+			}
+		}
+	}
+
+	&__annotation {
+		&__item {
+			background-color: $color-neutral-800 ;
+		}
+	}
+
+	&__customizer {
+		&__field {
+			&__label {
+				color: $color-neutral-100;
+			}
+			
+			&__input {
+				&__font {
+					border-color: $color-neutral-700 ;
+					color: $color-neutral-200  ;
+
+					&:hover {
+						background-color: $color-neutral-800 ;
+						color: $color-white ;
+					}
+
+					&--selected {
+						border-color: $color-secondary ;
+						background-color: rgba($color-secondary, 0.2);
+					}
+				}
+			}
+		}
+	}
+}

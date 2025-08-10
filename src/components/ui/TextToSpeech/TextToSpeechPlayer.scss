@@ -1,0 +1,327 @@
+.tts-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 30vh; /* From original CSS */
+  background: rgba(255, 255, 255, 0.95); /* From original CSS */
+  backdrop-filter: blur(20px); /* From original CSS */
+  border: none; /* From original CSS */
+  border-radius: 0; /* Changed to 0 as requested */
+  box-shadow: 0 -8px 32px rgba(31, 38, 135, 0.1), 0 -4px 16px rgba(0, 0, 0, 0.0); /* From original CSS */
+  z-index: 1500; /* From original CSS */
+  animation: slideUp 0.3s ease-out; /* From original CSS */
+  overflow-y: auto; /* From original CSS */
+
+  /* Reverted Desktop side panel styles from original CSS */
+  @media (min-width: 1024px) {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    border-radius: 0; /* Changed to 0 as requested */
+    box-shadow: 0 -8px 32px rgba(31, 38, 135, 0.37), 0 -4px 16px rgba(0, 0, 0, 0.1);
+    animation: slideUp 0.3s ease-out;
+  }
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px; /* From original CSS */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1); /* From original CSS */
+  background: rgba(255, 255, 255, 0.95); /* From original CSS */
+  backdrop-filter: blur(20px); /* From original CSS */
+
+  h3 { /* From original CSS */
+    margin: 0;
+    color: #333;
+    font-weight: 600;
+  }
+
+  display: none;
+}
+
+.close-button {
+  background: none; /* From original CSS */
+  border: none; /* From original CSS */
+  color: #666; /* From original CSS */
+  cursor: pointer; /* From original CSS */
+  padding: 8px; /* From original CSS */
+  border-radius: 8px; /* From original CSS */
+  transition: all 0.3s ease; /* From original CSS */
+
+  &:hover { /* From original CSS */
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+  }
+}
+
+.tts-content {
+  padding: 20px; /* From original CSS */
+}
+
+.tts-progress {
+  width: 100%; /* From original CSS */
+  height: 10px; /* From original CSS */
+  background: rgba(0, 0, 0, 0.1); /* From original CSS */
+  border-radius: 2px; /* From original CSS */
+  margin-bottom: 10px; /* From original CSS */
+  overflow: hidden; /* From original CSS */
+}
+
+.tts-progress-bar { /* This is the fill bar */
+  height: 100%; /* From original CSS */
+  background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%); /* From original CSS */
+  border-radius: 2px; /* From original CSS */
+  transition: width 0.3s ease; /* From original CSS */
+}
+
+.tts-controls {
+  display: flex; /* Ensures horizontal layout */
+  justify-content: center; /* From original CSS */
+  align-items: center; /* From original CSS */
+  gap: 10px; /* From original CSS */
+  margin-bottom: 10px; /* From original CSS */
+}
+
+.control-button {
+  width: 50px; /* From original CSS */
+  height: 50px; /* From original CSS */
+  border: none; /* From original CSS */
+  border-radius: 50%; /* From original CSS */
+  background: rgba(255, 255, 255, 0.8); /* From original CSS */
+  color: #333; /* From original CSS */
+  display: flex; /* From original CSS */
+  align-items: center; /* From original CSS */
+  justify-content: center; /* From original CSS */
+  cursor: pointer; /* From original CSS */
+  font-size: 18px; /* From original CSS */
+  transition: all 0.3s ease; /* From original CSS */
+  box-shadow: 0 4px 15px rgba(100, 126, 234, 0.3), 0 2px 8px rgba(100, 126, 234, 0.2); /* From original CSS */
+
+  &:hover { /* From original CSS */
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(100, 126, 234, 0.4), 0 3px 12px rgba(100, 126, 234, 0.3);
+  }
+
+  &:active { /* From original CSS */
+    transform: translateY(0);
+  }
+}
+
+.play-button { /* Specific styles for the main play button */
+  width: 60px; /* From original CSS */
+  height: 60px; /* From original CSS */
+  background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%); /* From original CSS */
+  color: white; /* From original CSS */
+  font-size: 22px; /* From original CSS */
+}
+
+.tts-settings {
+  display: flex; /* From original CSS */
+  flex-direction: column; /* From original CSS */
+  gap: 15px; /* From original CSS */
+  margin-bottom: 10px; /* From original CSS */
+}
+
+.setting-group {
+  display: flex; /* From original CSS */
+  align-items: center; /* From original CSS */
+  gap: 10px; /* From original CSS */
+  margin-bottom: -20px;
+}
+
+.setting-label {
+  display: flex; /* From original CSS */
+  align-items: center; /* From original CSS */
+  gap: 5px; /* From original CSS */
+  min-width: 80px; /* From original CSS */
+  font-weight: 500; /* From original CSS */
+  color: #333; /* From original CSS */
+}
+
+.setting-slider {
+  flex: 1; /* From original CSS */
+  height: 6px; /* From original CSS */
+  border-radius: 3px; /* From original CSS */
+  background: rgba(0, 0, 0, 0.1); /* From original CSS */
+  outline: none; /* From original CSS */
+  -webkit-appearance: none; /* From original CSS */
+  appearance: none; /* From original CSS */
+  cursor: pointer; /* From original CSS */
+
+  &::-webkit-slider-thumb { /* From original CSS */
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(79, 172, 254, 0.3);
+  }
+}
+
+.setting-value {
+  min-width: 40px; /* From original CSS */
+  text-align: right; /* From original CSS */
+  font-weight: 500; /* From original CSS */
+  color: #333; /* From original CSS */
+}
+
+.voice-select {
+  flex: 1; /* From original CSS */
+  padding: 8px 12px; /* From original CSS */
+  border: 1px solid rgba(0, 0, 0, 0.2); /* From original CSS */
+  border-radius: 8px; /* From original CSS */
+  background: rgba(255, 255, 255, 0.8); /* From original CSS */
+  color: #333; /* From original CSS */
+  font-size: 14px; /* From original CSS */
+  outline: none; /* From original CSS */
+  cursor: pointer; /* From original CSS */
+
+  &:focus { /* From original CSS */
+    border-color: #4facfe;
+    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.2);
+  }
+}
+
+.text-preview {
+  background: rgba(0, 0, 0, 0.05); /* From original CSS */
+  border-radius: 12px; /* From original CSS */
+  padding: 15px; /* From original CSS */
+}
+
+.text-preview-content {
+  font-size: 14px; /* From original CSS */
+  line-height: 1.5; /* From original CSS */
+  color: #666; /* From original CSS */
+  text-align: justify; /* From original CSS */
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Dark theme - adapted from previous SCSS */
+[data-theme="dark"] {
+  .tts-panel {
+    background: linear-gradient(135deg, rgba(26, 26, 26, 0.98) 0%, rgba(26, 26, 26, 0.95) 100%);
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .panel-header {
+    background: rgba(26, 26, 26, 0.95);
+    h3 {
+      color: #fff;
+    }
+  }
+
+  .close-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+  }
+
+  .tts-progress {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .control-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+  }
+
+  .play-button {
+    background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%); /* Keep original gradient for play button */
+    color: white;
+  }
+
+  .setting-label {
+    color: #fff;
+  }
+
+  .setting-slider {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .voice-select {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .text-preview {
+    background: rgba(24, 119, 242, 0.1); /* Facebook blue */
+    border-color: rgba(24, 119, 242, 0.2); /* Facebook blue */
+    color: #ccc;
+  }
+}
+
+/* Mobile responsive - adapted from original CSS */
+@media (max-width: 768px) {
+  .tts-panel {
+    max-height: 45vh;
+  }
+
+  .tts-content {
+    padding: 15px;
+  }
+
+  .control-button {
+    width: 45px;
+    height: 45px;
+    font-size: 16px;
+  }
+
+  .play-button {
+    width: 55px;
+    height: 55px;
+    font-size: 20px;
+  }
+
+  .tts-controls {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .setting-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .setting-label {
+    min-width: auto;
+  }
+
+  .control-button {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+
+  .play-button {
+    width: 50px;
+    height: 50px;
+    font-size: 18px;
+  }
+}

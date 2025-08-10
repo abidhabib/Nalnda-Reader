@@ -1,0 +1,151 @@
+.sidepanel {
+	top : 0 ;
+	position: fixed ;
+	height: 100% ;
+	width : 100% ;
+	max-width: 40rem ;
+	background-color: $color-white ;
+	box-shadow: $shadow-md ;
+	transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+	z-index: 200 ;
+	display: flex ;
+	flex-direction: column ;
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+
+	@include respond(phone) {
+		max-width: 100% ;
+	}
+	
+	&--right {
+		right: 0 ;
+		transform: translate(calc(100% + 4rem));
+	}
+
+	&--left {
+		left: 0 ;
+		transform: translate(calc(-100% - 4rem));
+	}
+
+	&--right-bottom {
+		right: 0 ;
+		transform: translate(calc(100% + 4rem));
+
+		@include respond(phone) {
+			top: unset ;
+			bottom: 0 ; 
+			left: 0 ;
+			width: 100% ;
+			height: min-content  ;
+			transform: translateY(calc(100% + 4rem));
+		}
+	}
+
+	&--open {
+		transform: translate(0);
+	}
+
+	&__overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background-color: rgba(0, 0, 0, 0.5);
+		z-index: 150;
+		backdrop-filter: blur(2px);
+		-webkit-backdrop-filter: blur(2px);
+		animation: fadeIn 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+	}
+
+	&__header {
+		display: flex ;
+		padding: 1rem ;
+		border-bottom: 0.2rem solid $color-neutral-200 ;
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		align-items: center;
+
+		&__title {
+			flex: 1 ;
+			display: flex ;
+			align-items: center ;
+			justify-content: center ;
+			color: $color-neutral-700 ;
+		}
+
+		&__close {
+			flex-shrink: 0;
+			margin-left: 1rem;
+			
+			&:active {
+				transform: scale(0.95);
+			}
+		}
+	}
+
+	&__body {
+		flex: 1 ;
+		overflow-y: auto ;
+		scroll-behavior: smooth;
+		
+		// Smooth scrolling
+		&::-webkit-scrollbar {
+			width: 6px;
+		}
+		
+		&::-webkit-scrollbar-track {
+			background: transparent;
+		}
+		
+		&::-webkit-scrollbar-thumb {
+			background: $color-neutral-300;
+			border-radius: 3px;
+		}
+		
+		&::-webkit-scrollbar-thumb:hover {
+			background: $color-neutral-400;
+		}
+	}
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+[data-theme="dark"] .sidepanel {
+	background-color: $color-neutral-900 ;
+
+	&__overlay {
+		background-color: rgba(0, 0, 0, 0.7);
+	}
+
+	&__header {
+		border-bottom-color: $color-black ;
+		&__title {
+			color: $color-neutral-100 ;
+		}
+	}
+	
+	&__body {
+		&::-webkit-scrollbar-thumb {
+			background: $color-neutral-700;
+		}
+		
+		&::-webkit-scrollbar-thumb:hover {
+			background: $color-neutral-600;
+		}
+	}
+}
+
+/*@media (max-width: 768px) {
+  .sidepanel__header {
+    display: none;
+  }
+}*/
+

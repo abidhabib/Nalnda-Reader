@@ -1,0 +1,43 @@
+@mixin clearfix {
+	&::after{
+		content: "";
+		display: table;
+		clear: both;
+	}
+}
+
+// MEDIA QUERY MANAGER
+/*
+	0 - 600:		Phone
+	600 - 900:		Tablet (Portrait)
+	900 - 1200:		Table (Landscape)
+	1200 - 1800:	Desktop
+	1800 <	:		Big Desktop
+*/
+
+@mixin respond($bp){
+	@if $bp == phone{
+		@media (max-width: 37.5em){@content};
+	}
+	@if $bp == tabPort{
+		@media (max-width: 56.25em){@content};
+	}
+	@if $bp == tabLand{
+		@media (max-width: 75em){@content};
+	}
+	@if $bp == desk{
+		@media (max-width: 112.5em){@content};
+	}
+	@if $bp == desBig{
+		@media (min-width: 112.5em){@content}
+	}
+	@if $bp == retinaBig{
+		@media 
+		only screen and (-webkit-min-device-pixel-ratio: 2) and (max-width: 112.5em),
+		only screen and (min--moz-device-pixel-ratio: 2) and (max-width: 112.5em),
+		only screen and (-o-min-device-pixel-ratio: 2/1) and (max-width: 112.5em),
+		only screen and (min-device-pixel-ratio: 2) and (max-width: 112.5em),
+		only screen and (min-resolution: 192dpi) and (max-width: 112.5em),
+		only screen and (min-resolution: 2dppx) and (max-width: 112.5em) {@content}
+	}
+}

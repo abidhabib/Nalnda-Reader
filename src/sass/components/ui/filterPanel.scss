@@ -1,0 +1,112 @@
+.filter-panel {
+    display: flex ;
+    flex-direction: column ;
+    height: 100% ;
+    position: relative ;
+    padding: 0 1.5rem;
+
+    &__header {
+        display: flex ;
+        align-items: center ;
+        border-bottom: 0.2rem solid $color-neutral-200 ;
+        color: $color-neutral-600 ;
+        padding: 1.5rem ;
+        height: 4rem;
+
+        &__title {
+            margin-right: auto ;
+            margin-left: auto ;
+        }
+
+        &__close-btn {
+            display: none ;
+            @include respond(tabLand) {
+                display: block;
+            }
+        }
+
+    }
+
+    &__body {
+        flex: 1 ;
+        height: 100% ;
+        overflow-y: auto ;
+        padding-bottom: 3rem ;
+        
+        -ms-overflow-style: none; /* Internet Explorer 10+ */
+        scrollbar-width: none; /* Firefox */
+        overflow: -moz-scrollbars-none; /* Old Firefox */
+        &::-webkit-scrollbar { display: none; /* Safari and Chrome */ }
+
+        &__accordian {
+            max-height: 48rem ;
+        }
+
+        &__tabs {
+            display: flex ;
+            padding: 0.5rem ;
+            border-bottom: 0.2rem solid $color-neutral-200 ;
+            &__item {
+                flex: 1 ;
+                margin: 0.5rem ;
+
+                &--active {
+                    background: $color-neutral-200 ;
+                    color: $color-neutral-700 ;
+                }
+            }
+        }
+
+        &__range {
+            border-bottom: 0.2rem solid $color-neutral-200 ;
+            &__header {
+                padding: 0.75rem ;
+                display: flex ;
+                align-items: center ;
+                justify-content: space-between ;
+                color: $color-neutral-600 ;
+            }
+
+            &__body {
+                padding: 1.27rem ;
+                > input {
+                    width: 100% ;
+                }
+            }
+        }
+
+        &__item {
+            padding: 1rem ;
+            color: $color-neutral-600 ;
+
+            &>label {
+                display: flex ;
+                align-items: center ;
+                cursor: pointer ;
+
+                &>input {
+                    display: block ;
+                    margin-right: 1rem ;
+
+                    &:checked + span {
+                        color: $color-neutral-700 ;
+                    }
+                }
+            }
+
+            &:hover {
+                color: $color-neutral-700 ;
+            }
+        }
+    }
+
+    &__fab {
+        position: absolute ;
+        bottom: 2.4rem ;
+        left: 50% ;
+        transform: translateX(-50%);
+        &>button {
+            box-shadow: $shadow-lg , $shadow-sm;
+        }
+    }
+}

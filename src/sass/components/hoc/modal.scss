@@ -1,0 +1,142 @@
+.modal{
+	background-color: $color-white;
+	border-radius: 2rem;
+	box-shadow: 0 0.2rem 1.6rem rgba($color-black, 0.24);
+	z-index: 800;
+	padding: 2.4rem;
+
+	@include respond(phone){
+		overflow-y: scroll;
+	}
+}
+
+/* this is different modal (css for components/hoc/Modal.jsx) */
+.modal__wrapper {
+	position: fixed ;
+	top: 50% ;
+	left: 50% ;
+	width: 100% ;
+	min-width: 40vw ;
+	max-width: 48rem ;
+	min-height: max-content ;
+	max-height: 100%;
+	transform: translate(-50%,-50%);
+	background-color: $color-white ;
+	box-shadow: 0 0.2rem 1.6rem rgba($color-black, 0.24);
+	z-index: 999 ;
+	border-radius: 2rem;
+	transition: all 200ms ease-out ;
+
+	@include respond(tabPort) {
+		max-width: 90%;
+	}
+
+	&__header {
+		display: flex ;
+		align-items: center ;
+		margin-bottom: 1rem ;
+		padding: 1.5rem ;
+		padding-left: 2.5rem ;
+		padding-bottom: 0 ;
+		&__title {
+			flex: 1 ;
+			color: $color-neutral-600 ;
+		}
+	}
+
+	&__content {
+		max-height: 60vh ;
+		overflow-y: auto ;
+		padding: 2rem ;
+	}
+
+	&--close {
+		transform: translate(-50%,-50%) scale(0) ;
+		opacity: 0 ;
+		pointer-events: none ;
+	}
+
+	&--open {
+		transform: translate(-50%,-50%) scale(1) ;
+		opacity: 1;
+		pointer-events: all ;
+	}
+}
+
+.modal__purchase{
+
+	&__tabs{
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		overflow: hidden;
+		border: none ;
+
+		&__item{
+			flex: 1;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			transition: all 0.15s ease-out;
+			padding: 1rem 0;
+			border-radius: 0.4rem ;
+			font-weight: 600 ;
+			color: $color-neutral-500 ;
+
+			&:hover {
+				background-color: $color-neutral-200 ;
+			}
+
+			&--active{
+				background: linear-gradient(to right,$color-primary,$color-primary-dark);
+				color: $color-white;
+			}
+		}
+	}
+
+	&__data{
+		margin-top: 2rem;
+		
+		&__book{
+			display: flex;
+			flex-direction: row;
+			align-items: flex-start;
+			justify-content: flex-start;
+
+			&__cover{
+				margin-right: 2.4rem;
+
+				&>img{
+					height: 16rem;
+					width: 10rem;
+					object-fit: contain;
+					border-radius: 0.4rem;
+				}
+			}
+		}
+
+		&__cta{
+			margin-top: 1rem;
+		}
+
+		&__offers{
+			
+			
+			&__item{
+				padding: 1rem ;
+				border-radius: 0.8rem ;
+
+				&:not(:last-child){ margin-bottom: 0.8rem; }
+				&:hover { background-color: $color-neutral-200 ; }
+
+				&__cta{
+					margin-top: 1.2rem;
+					width: 50%;
+				}
+			}
+		}
+	}
+
+}

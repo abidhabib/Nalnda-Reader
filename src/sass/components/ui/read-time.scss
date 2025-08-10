@@ -1,0 +1,13 @@
+.readtime {
+	display: flex ;
+	align-items: center ;
+	margin-left: 1rem ;
+	color: $color-neutral-500 ;
+	&__time {
+		margin-left: 1rem ;
+	}
+}
+
+[data-theme="dark"] .readtime {
+	color: $color-neutral-100 ;
+}
