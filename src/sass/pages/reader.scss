@@ -734,3 +734,33 @@
     transform: none;
   }
 }
+/* The container that holds the EPUB iframe */
+.reader__container__book {
+  overflow: hidden;
+  touch-action: pan-y;           /* we handle horizontal swipes ourselves */
+  overscroll-behavior: contain;  /* reduce rubber-banding interference */
+}
+
+/* The element we translate during swipe (iframe wrapper / view) */
+.reader__container__book iframe,
+.reader__container__book .epub-view {
+  will-change: transform;        /* promote to GPU layer early */
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Optional: small visual nudge for button/keyboard nav (not used for finger-drag) */
+#book__reader.page-slide--next,
+#book__reader.page-slide--prev {
+  transition: transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+#book__reader.page-slide--next { transform: translate3d(-12%, 0, 0); }
+#book__reader.page-slide--prev { transform: translate3d( 12%, 0, 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  #book__reader.page-slide--next,
+  #book__reader.page-slide--prev {
+    transition: none;
+    transform: none;
+  }
+}
