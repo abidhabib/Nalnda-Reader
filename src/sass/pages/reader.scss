@@ -392,7 +392,61 @@
 		}
 	}
 }
+@keyframes mobilePageFlipNext {
+  0% {
+    transform: translateX(0) rotateY(0deg) scale(1);
+    opacity: 1;
+    filter: blur(0px);
+  }
+  25% {
+    transform: translateX(-10%) rotateY(-3deg) scale(0.98);
+    opacity: 0.95;
+    filter: blur(0.3px);
+  }
+  50% {
+    transform: translateX(-30%) rotateY(-8deg) scale(0.95);
+    opacity: 0.8;
+    filter: blur(0.6px);
+  }
+  75% {
+    transform: translateX(-60%) rotateY(-15deg) scale(0.92);
+    opacity: 0.6;
+    filter: blur(1px);
+  }
+  100% {
+    transform: translateX(-100%) rotateY(-20deg) scale(0.9);
+    opacity: 0;
+    filter: blur(1.5px);
+  }
+}
 
+@keyframes mobilePageFlipPrev {
+  0% {
+    transform: translateX(0) rotateY(0deg) scale(1);
+    opacity: 1;
+    filter: blur(0px);
+  }
+  25% {
+    transform: translateX(10%) rotateY(3deg) scale(0.98);
+    opacity: 0.95;
+    filter: blur(0.3px);
+  }
+  50% {
+    transform: translateX(30%) rotateY(8deg) scale(0.95);
+    opacity: 0.8;
+    filter: blur(0.6px);
+  }
+  75% {
+    transform: translateX(60%) rotateY(15deg) scale(0.92);
+    opacity: 0.6;
+    filter: blur(1px);
+  }
+  100% {
+    transform: translateX(100%) rotateY(20deg) scale(0.9);
+    opacity: 0;
+    filter: blur(1.5px);
+  }
+}
 // Enhanced mobile page flip animations
 @keyframes mobilePageFlipNext {
   0% {
@@ -631,11 +685,19 @@
 }
 
 #book__reader {
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  overflow: hidden;
+	will-change: transform;
+	backface-visibility: hidden;
+	transform: translateZ(0);
+	
+	// Smooth iframe transitions
+	iframe {
+		will-change: transform;
+		backface-visibility: hidden;
+		transform: translateZ(0);
+		transition: transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1);
+	}
 }
+
 
 #book__reader iframe {
   will-change: transform;

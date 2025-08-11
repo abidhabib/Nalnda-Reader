@@ -257,73 +257,74 @@ const ReaderMobilePage = () => {
   }
 
 const navigatePage = useCallback((direction) => {
-  if (!Rendition) return;
+  if (!Rendition) return Promise.resolve()
 
-  // Add smooth transition class
-  setIsTransitioning(true);
+  // Add visual feedback
+  setIsTransitioning(true)
   
-  const transitionPromise = direction === 'next' 
-    ? Rendition.next({ transition: 'slide', duration: 250 })
-    : Rendition.prev({ transition: 'slide', duration: 250 });
+  const promise = direction === 'next' 
+    ? Rendition.next({ transition: 'slide', duration: 280 })
+    : Rendition.prev({ transition: 'slide', duration: 280 })
 
-  // Reset transitioning state after animation
-  setTimeout(() => {
-    setIsTransitioning(false);
-  }, 300);
+  // Reset transitioning state
+  promise.finally(() => {
+    setTimeout(() => {
+      setIsTransitioning(false)
+    }, 50)
+  })
 
-  return transitionPromise;
-}, [Rendition]);
+  return promise
+}, [Rendition])
+
+
 useEffect(() => {
   if (!Rendition) return;
 
-  let touchStartX = 0;
-  let touchStartY = 0;
+  let startX = 0;
   let isSwiping = false;
 
   const handleTouchStart = (e) => {
     if (e.touches.length !== 1) return;
-    
+
     // Don't interfere with panels
     if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-    
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
+
+    startX = e.touches[0].clientX;
     isSwiping = false;
   };
 
   const handleTouchMove = (e) => {
-    if (!touchStartX || !touchStartY) return;
+    if (!startX) return;
+
+    // Don't interfere with panels
     if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
 
     const touchX = e.touches[0].clientX;
-    const touchY = e.touches[0].clientY;
-    const deltaX = touchX - touchStartX;
-    const deltaY = touchY - touchStartY;
+    const deltaX = touchX - startX;
+    const startY = e.touches[0].clientY;
 
     // Only consider it a swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+    if (Math.abs(deltaX) > Math.abs(e.touches[0].clientY - startY) && Math.abs(deltaX) > 30) {
       isSwiping = true;
       e.preventDefault(); // Prevent scrolling during swipe
     }
   };
 
   const handleTouchEnd = (e) => {
-    if (!isSwiping || !touchStartX) {
-      touchStartX = 0;
-      touchStartY = 0;
+    if (!isSwiping || !startX) {
+      startX = 0;
       isSwiping = false;
       return;
     }
 
     if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
-      touchStartX = 0;
-      touchStartY = 0;
+      startX = 0;
       isSwiping = false;
       return;
     }
 
     const touchX = e.changedTouches[0].clientX;
-    const deltaX = touchX - touchStartX;
+    const deltaX = touchX - startX;
     const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
 
     if (Math.abs(deltaX) > swipeThreshold) {
@@ -336,8 +337,7 @@ useEffect(() => {
       }
     }
 
-    touchStartX = 0;
-    touchStartY = 0;
+    startX = 0;
     isSwiping = false;
   };
 
@@ -357,7 +357,6 @@ useEffect(() => {
     }
   };
 }, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
-
 
   const openFullscreen = useCallback(() => {
     const elem = document.documentElement
@@ -642,97 +641,131 @@ useEffect(() => {
 
           renditionInstance = rendition
           setRendition(rendition)
+
 const attachSwipeToDoc = (content) => {
-  if (!content?.document || attachedDocs.has(content.document)) return
-  attachedDocs.add(content.document)
+  if (!content?.document || attachedDocs.has(content.document)) return;
+  attachedDocs.add(content.document);
 
-  const iframe = content.document.defaultView?.frameElement?.parentElement
-  if (!iframe) return
+  const iframe = content.document.defaultView?.frameElement?.parentElement;
+  if (!iframe) return;
 
-  let startX = 0, startY = 0, deltaX = 0
-  let lastX = 0, lastT = 0, velocity = 0
-  let isDragging = false, rafId = null
+  let startX = 0;
+  let startY = 0;
+  let deltaX = 0;
+  let lastX = 0;
+  let lastT = 0;
+  let velocity = 0;
+  let isDragging = false;
+  let rafId = null;
 
-  const threshold = Math.min(window.innerWidth * 0.18, 90)
+  const threshold = Math.min(window.innerWidth * 0.15, 80); // Slightly lower threshold
 
   const setTransform = (x) => {
-    if (rafId) cancelAnimationFrame(rafId)
+    if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => {
-      iframe.style.transform = `translate3d(${x}px, 0, 0)`
-    })
-  }
+      iframe.style.transform = `translate3d(${x}px, 0, 0)`;
+      iframe.style.willChange = 'transform';
+    });
+  };
 
   const resetTransform = (animate = true) => {
-    iframe.style.transition = animate ? "transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1)" : "none"
-    iframe.style.transform = "translate3d(0, 0, 0)"
-  }
+    if (rafId) cancelAnimationFrame(rafId);
+    iframe.style.willChange = 'auto';
+    iframe.style.transition = animate ? "transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1)" : "none";
+    iframe.style.transform = "translate3d(0, 0, 0)";
+  };
 
   const touchStart = (e) => {
-    if (e.touches.length !== 1) return
-    startX = lastX = e.touches[0].clientX
-    startY = e.touches[0].clientY
-    deltaX = 0
-    velocity = 0
-    isDragging = false
-    lastT = e.timeStamp
-    iframe.style.transition = "none"
-  }
+    if (e.touches.length !== 1) return;
+
+    // Don't interfere with panels
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
+
+    startX = lastX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    deltaX = 0;
+    velocity = 0;
+    isDragging = false;
+    lastT = e.timeStamp;
+    iframe.style.transition = "none";
+    iframe.style.willChange = 'transform';
+  };
 
   const touchMove = (e) => {
-    if (e.touches.length !== 1) return
-    const x = e.touches[0].clientX
-    const y = e.touches[0].clientY
-    const dx = x - startX
-    const dy = y - startY
+    if (e.touches.length !== 1) return;
 
-    if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
-      isDragging = true
-      setIsSwiping(true)
+    // Don't interfere with panels
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
+
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    const dx = x - startX;
+    const dy = y - startY;
+
+    // Only start dragging if it's clearly a horizontal swipe
+    if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) {
+      isDragging = true;
+      setIsSwiping(true);
+      e.preventDefault(); // Only prevent default when we're sure it's a swipe
     }
-    if (!isDragging) return
 
-    e.preventDefault()
-    deltaX = dx
+    if (!isDragging) return;
 
-    const dt = Math.max(1, e.timeStamp - lastT)
-    velocity = (x - lastX) / dt // px per ms
-    lastX = x
-    lastT = e.timeStamp
+    deltaX = dx;
 
-    setTransform(deltaX)
-  }
+    // Calculate velocity for momentum
+    const dt = Math.max(1, e.timeStamp - lastT);
+    velocity = (x - lastX) / dt;
+    lastX = x;
+    lastT = e.timeStamp;
+
+    setTransform(deltaX);
+  };
 
   const touchEnd = () => {
     if (!isDragging) {
-      resetTransform()
-      return
+      resetTransform();
+      setIsSwiping(false);
+      return;
     }
-    const distance = Math.abs(deltaX)
-    const speed = Math.abs(velocity)
-    const passed = distance > threshold || speed > 0.35
 
-    const base = 260
-    const duration = Math.min(420, Math.max(200, base + (distance / window.innerWidth) * 180))
-    const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)"
+    const distance = Math.abs(deltaX);
+    const speed = Math.abs(velocity);
 
-    if (passed) {
-      iframe.style.transition = `transform ${duration}ms ${easing}`
-      iframe.style.transform = `translate3d(${deltaX < 0 ? -window.innerWidth : window.innerWidth}px, 0, 0)`
+    // More sensitive detection - pass if distance OR speed is sufficient
+    const passed = distance > threshold || speed > 0.3;
+
+    // Dynamic duration based on swipe speed
+    const baseDuration = 250;
+    const duration = Math.min(400, Math.max(180, baseDuration + (distance / window.innerWidth) * 150));
+    const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)";
+
+    if (passed && renditionInstance) {
+      iframe.style.transition = `transform ${duration}ms ${easing}`;
+      iframe.style.transform = `translate3d(${deltaX < 0 ? -window.innerWidth : window.innerWidth}px, 0, 0)`;
+
       setTimeout(() => {
-        deltaX < 0 ? renditionInstance.next() : renditionInstance.prev()
-        resetTransform(false)
-      }, duration)
+        if (deltaX < 0) {
+          renditionInstance.next();
+        } else {
+          renditionInstance.prev();
+        }
+        resetTransform(false);
+        setIsSwiping(false);
+      }, duration);
     } else {
-      resetTransform()
+      resetTransform();
+      setIsSwiping(false);
     }
-    isDragging = false
-    setIsSwiping(false)
-  }
 
-  content.document.addEventListener("touchstart", touchStart, { passive: true })
-  content.document.addEventListener("touchmove",  touchMove,  { passive: false })
-  content.document.addEventListener("touchend",   touchEnd,   { passive: true })
-}
+    isDragging = false;
+  };
+
+  // Use passive: false for touchmove to allow preventDefault
+  content.document.addEventListener("touchstart", touchStart, { passive: true });
+  content.document.addEventListener("touchmove", touchMove, { passive: false });
+  content.document.addEventListener("touchend", touchEnd, { passive: true });
+};
 
 
           rendition.getContents().forEach(attachSwipeToDoc)
@@ -994,92 +1027,7 @@ const attachSwipeToDoc = (content) => {
     return () => window.removeEventListener("scroll", hideMenu)
   }, [])
 
-// ADD THIS NEW USEEFFECT INSTEAD
-useEffect(() => {
-  if (!Rendition) return;
 
-  let touchStartX = 0;
-  let touchStartY = 0;
-  let isSwiping = false;
-
-  const handleTouchStart = (e) => {
-    if (e.touches.length !== 1) return;
-    
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-    
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    isSwiping = false;
-  };
-
-  const handleTouchMove = (e) => {
-    if (!touchStartX || !touchStartY) return;
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-
-    const touchX = e.touches[0].clientX;
-    const touchY = e.touches[0].clientY;
-    const deltaX = touchX - touchStartX;
-    const deltaY = touchY - touchStartY;
-
-    // Only consider it a swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
-      isSwiping = true;
-      e.preventDefault(); // Prevent scrolling during swipe
-    }
-  };
-
-  const handleTouchEnd = (e) => {
-    if (!isSwiping || !touchStartX) {
-      touchStartX = 0;
-      touchStartY = 0;
-      isSwiping = false;
-      return;
-    }
-
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
-      touchStartX = 0;
-      touchStartY = 0;
-      isSwiping = false;
-      return;
-    }
-
-    const touchX = e.changedTouches[0].clientX;
-    const deltaX = touchX - touchStartX;
-    const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
-
-    if (Math.abs(deltaX) > swipeThreshold) {
-      if (deltaX > 0) {
-        // Swipe right - go to previous page
-        navigatePage("prev");
-      } else {
-        // Swipe left - go to next page
-        navigatePage("next");
-      }
-    }
-
-    touchStartX = 0;
-    touchStartY = 0;
-    isSwiping = false;
-  };
-
-  // Attach touch events to the book reader container
-  const bookReader = document.getElementById('book__reader');
-  if (bookReader) {
-    bookReader.addEventListener('touchstart', handleTouchStart, { passive: false });
-    bookReader.addEventListener('touchmove', handleTouchMove, { passive: false });
-    bookReader.addEventListener('touchend', handleTouchEnd, { passive: true });
-  }
-
-  return () => {
-    if (bookReader) {
-      bookReader.removeEventListener('touchstart', handleTouchStart);
-      bookReader.removeEventListener('touchmove', handleTouchMove);
-      bookReader.removeEventListener('touchend', handleTouchEnd);
-    }
-  };
-}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       cleanupBook()

@@ -204,15 +204,20 @@
 }
 
 // Smooth page transition effects
-.reader__container__book {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
-  transform: translateZ(0);
+// .reader__container__book {
+//   transition: transform 10.3s cubic-bezier(0.4, 0, 0.2, 1);
+//   will-change: transform;
+//   transform: translateZ(0);
   
-  &.page-turning {
-    transition: transform 0.3s ease-out;
-  }
-}
+//   &.page-turning {
+//     transition: transform 0.3s ease-out;
+//   }
+//   .reader--transitioning {
+//   .reader__container__book {
+//     opacity: 0.98;
+//   }
+// }
+// }
 
 // Optimize epub content rendering
 .epub-view {
