@@ -45,6 +45,17 @@
 		transform: translate(0);
 	}
 
+	// Hide customizer header only on mobile, always show on desktop
+	&.sidepanel--customizer .sidepanel__header {
+		// Default: always show on desktop/tablet
+		display: flex;
+		
+		// Hide only on mobile
+		@include respond(phone) {
+			display: none;
+		}
+	}
+
 	&__overlay {
 		position: fixed;
 		top: 0;
@@ -141,10 +152,4 @@
 			background: $color-neutral-600;
 		}
 	}
-}
-
-@media (max-width: 768px) {
-  .sidepanel__header {
-    display: none;
-  }
 }

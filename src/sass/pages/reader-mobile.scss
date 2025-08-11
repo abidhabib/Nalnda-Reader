@@ -7,7 +7,13 @@
   background-color: transparent !important;
   box-shadow: none !important;
 }
-
+.reader__header__right{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0rem;
+  padding: 0% 0.5rem;
+}
 .reader__header__right__button--bookmarked {
   position: relative;
   animation: bookmarkPulse 2s infinite;
@@ -15,24 +21,43 @@
   box-shadow: none !important;
   color: #ff6b35 !important;
   fill: #ff6b35 !important;
-  
+  transition: all 0.2s ease; // Add smooth transition
 }
+
 #book__reader {
   width: 100%;
   height: 100vh;
   max-width: 1200px; 
   margin: 0 auto;
   overflow: hidden;
+  // Add smooth scrolling optimizations
+  transform: translateZ(0); // Hardware acceleration
+  will-change: transform;
+  backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
   iframe {
     width: 100% !important;
     height: 100% !important;
+    // Smooth iframe transitions
+    transition: opacity 0.2s ease-out;
+    transform: translateZ(0);
   }
 }
+
+// Enhanced bookmark pulse animation
 @keyframes bookmarkPulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.15); }
-  100% { transform: scale(1); }
+  0% { 
+    transform: scale(1); 
+  }
+  50% { 
+    transform: scale(1.15); 
+  }
+  100% { 
+    transform: scale(1); 
+  }
 }
 
 // Bookmark indicator dot
@@ -46,6 +71,20 @@
   border-radius: 50%;
   border: 1px solid white;
   z-index: 2;
+  // Add smooth appearance
+  opacity: 0;
+  animation: bookmarkDotAppear 0.3s ease-out forwards;
+}
+
+@keyframes bookmarkDotAppear {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 // Bookmark visual indicator in reader
@@ -60,10 +99,88 @@
   z-index: 1000;
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
   animation: bookmarkBlink 1s infinite;
+  // Add smooth entrance
+  opacity: 0;
+  transform: scale(0);
+  animation: bookmarkAppear 0.3s ease-out forwards, bookmarkBlink 1s 0.3s infinite;
+}
+
+@keyframes bookmarkAppear {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes bookmarkBlink {
   0% { opacity: 1; }
   50% { opacity: 0.5; }
   100% { opacity: 1; }
+}
+
+// Smooth scrolling for reader container
+.reader__container {
+  overflow: hidden;
+  -webkit-overflow-scrolling: touch; // Momentum scrolling on iOS
+  scroll-behavior: smooth;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+// Smooth transitions for navigation buttons
+.reader__container__prev-btn__button,
+.reader__container__next-btn__button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateZ(0);
+  will-change: transform;
+  cursor: pointer;
+  
+  &:hover {
+    transform: scale(1.1);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+// Smooth page transition effects
+.reader__container__book {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  transform: translateZ(0);
+  
+  // Page turn effect
+  &.page-turning {
+    transition: transform 0.3s ease-out;
+  }
+}
+
+// Optimize epub content rendering
+.epub-view {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  
+  .epub-page {
+    transition: opacity 0.2s ease-out;
+  }
+}
+
+// Smooth progress bar interaction
+.reader__nav__progress {
+  input[type="range"] {
+    transition: all 0.2s ease;
+    
+    &::-webkit-slider-thumb {
+      transition: all 0.2s ease;
+      &:hover {
+        transform: scale(1.2);
+      }
+    }
+  }
 }
