@@ -3,7 +3,6 @@
 import { useDispatch, useSelector } from "react-redux"
 import { useSearchParams } from "react-router-dom"
 import { useCallback, useEffect, useRef, useState } from "react"
-import debounce from 'lodash/debounce';
 
 import axios from "axios"
 import Epub, { EpubCFI } from "epubjs"
@@ -35,6 +34,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaVolumeUp,
+  FaVolumeMute,
 } from "react-icons/fa"
 
 import GaTracker from "../trackers/ga-tracker"
@@ -46,6 +46,7 @@ const ReaderMobilePage = () => {
   const dispatch = useDispatch()
   const [searchParams] = useSearchParams()
   const UserState = useSelector((state) => state.UserState)
+  const [currentPageKey, setCurrentPageKey] = useState(0); // Track page changes
 
   // State management
   const [Loading, setLoading] = useState(false)
@@ -73,8 +74,13 @@ const ReaderMobilePage = () => {
   const [ShowCustomizerPanel, setShowCustomizerPanel] = useState(false)
   const [ShowTTSPlayer, setShowTTSPlayer] = useState(false)
 
-  const [IsTransitioning, setIsTransitioning] = useState(false)
+  const [isTransitioning, setisTransitioning] = useState(false)
   const [TouchStartX, setTouchStartX] = useState(null)
+  const [TouchStartY, setTouchStartY] = useState(null)
+    const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
+  const swipeThreshold = 50; // Minimum distance to trigger swipe
+  const maxVerticalSwipe = 30; // Max vertical deviation allowed for horizontal swipe
+
   const [IsSwiping, setIsSwiping] = useState(false)
   const [IsMobile, setIsMobile] = useState(false)
 
@@ -99,20 +105,7 @@ const ReaderMobilePage = () => {
     }
   }, [])
 
-const debouncedResize = useRef(
-  debounce((width, height) => {
-    if (Rendition?.manager) {
-      Rendition.manager.resize(width, height);
-    }
-  }, 250)
-).current;
 
-// Update resize handler
-const handleResize = () => {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  debouncedResize(width, height);
-};
   useEffect(() => {
     const checkIsMobile = () => {
       setIsMobile(window.innerWidth <= 768);
@@ -269,26 +262,21 @@ const handleResize = () => {
     }
   }
 
-  const navigatePage = useCallback((direction) => {
-    if (!Rendition) return Promise.resolve()
-
-    // Add visual feedback
-    setIsTransitioning(true)
-
-    const promise = direction === 'next'
-      ? Rendition.next({ transition: 'slide', duration: 280 })
-      : Rendition.prev({ transition: 'slide', duration: 280 })
-
-    // Reset transitioning state
-    promise.finally(() => {
-      setTimeout(() => {
-        setIsTransitioning(false)
-      }, 50)
-    })
-
-    return promise
-  }, [Rendition])
-
+  const navigatePage = useCallback(
+    (direction) => {
+      if (!Rendition || isTransitioning) return;
+      
+      setisTransitioning(true);
+      const transition = direction === "next" 
+        ? Rendition.next({ transition: "slide", duration: 300 })
+        : Rendition.prev({ transition: "slide", duration: 300 });
+      
+      transition
+        .then(() => setisTransitioning(false))
+        .catch(() => setisTransitioning(false));
+    },
+    [Rendition, isTransitioning]
+  );
   // Replace your complex swipe handling with this clean version
   useEffect(() => {
     if (!Rendition) return;
@@ -298,72 +286,45 @@ const handleResize = () => {
     let isHorizontalSwipe = false;
 
     const handleTouchStart = (e) => {
-      // Don't interfere with panels or text selection
-      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
-        return;
-      }
-
-      if (e.touches.length === 1) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-        isHorizontalSwipe = false;
-      }
+    if (e.touches.length !== 1) return;
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now()
     };
+  };
 
-    const handleTouchMove = (e) => {
-      if (!touchStartX || !touchStartY) return;
-
-      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
-        return;
-      }
-
-      const currentX = e.touches[0].clientX;
-      const currentY = e.touches[0].clientY;
-      const deltaX = currentX - touchStartX;
-      const deltaY = currentY - touchStartY;
-
-      // Detect clear horizontal intent early
-      if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
-        isHorizontalSwipe = true;
-        if (Math.abs(deltaX) > 20) {
-          e.preventDefault(); // Prevent only after clear intent
-        }
-      }
+  const handleTouchMove = (e) => {
+    if (e.touches.length !== 1 || !touchStartRef.current.x) return;
+    e.preventDefault(); // Prevent scroll when swipe detected
+  };
+const handleTouchEnd = (e) => {
+    if (!touchStartRef.current.x || e.changedTouches.length !== 1) return;
+    
+    const touchEnd = {
+      x: e.changedTouches[0].clientX,
+      y: e.changedTouches[0].clientY,
+      time: Date.now()
     };
-
-    const handleTouchEnd = (e) => {
-      if (!isHorizontalSwipe || !touchStartX) {
-        resetTouchState();
-        return;
-      }
-
-      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
-        resetTouchState();
-        return;
-      }
-
-      const endX = e.changedTouches[0].clientX;
-      const deltaX = endX - touchStartX;
-      const swipeDistance = Math.abs(deltaX);
-      const swipeThreshold = window.innerWidth * 0.1; // 10% of screen width
-
-      // Simple, reliable detection
-      if (swipeDistance > swipeThreshold) {
-        setIsTransitioning(true);
-
-        if (deltaX < 0) {
-          // Swipe left - next page
-          Rendition.next()
-            .finally(() => setTimeout(() => setIsTransitioning(false), 100));
-        } else {
-          // Swipe right - previous page
-          Rendition.prev()
-            .finally(() => setTimeout(() => setIsTransitioning(false), 100));
-        }
-      }
-
-      resetTouchState();
-    };
+    
+    const dx = touchEnd.x - touchStartRef.current.x;
+    const dy = Math.abs(touchEnd.y - touchStartRef.current.y);
+    const dt = touchEnd.time - touchStartRef.current.time;
+    
+    // Reset touch start
+    touchStartRef.current = { x: 0, y: 0, time: 0 };
+    
+    // Check if it's a valid horizontal swipe
+    if (dt > 1000 || dy > maxVerticalSwipe || Math.abs(dx) < swipeThreshold) {
+      return;
+    }
+    
+    if (dx < 0) {
+      navigatePage("next"); // Swipe left
+    } else {
+      navigatePage("prev"); // Swipe right
+    }
+  };
 
     const resetTouchState = () => {
       touchStartX = 0;
@@ -643,36 +604,18 @@ const handleResize = () => {
           const elm = document.querySelector("#book__reader")
           if (elm) elm.innerHTML = ""
 
- // In the useEffect where book is initialized
-const rendition = book.renderTo("book__reader", {
-  width: "100%",
-  height: "100%",
-  manager: "default",
-  flow: "paginated",
-  snap: true,
-  gap: 40,
-  allowScriptedContent: true,
-  spread: IsMobile ? "none" : "auto", // Force single page on mobile
-  minSpreadWidth: 768,
-  stylesheet: `
-    * {
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
-      -webkit-tap-highlight-color: rgba(0,0,0,0);
-    }
-    ::-webkit-scrollbar {
-      width: 0;
-      height: 0;
-    }
-  `
-});
+          const rendition = book.renderTo("book__reader", {
+            width: "100%",
+            height: "100%",
+            manager: "default",
+            flow: "paginated",
+            snap: true,
+            gap: 40,
+            allowScriptedContent: true,
+            sandbox: ["allow-scripts", "allow-same-origin", "allow-modals"] // Remove restrictive sandboxing
 
-// Add performance optimizations
-rendition.hooks.content.register(contents => {
-  contents.document.body.style.overscrollBehavior = 'none';
-  contents.document.documentElement.style.overscrollBehavior = 'none';
-  contents.document.body.style.webkitOverflowScrolling = 'touch';
-});
+          })
+
           rendition.themes.default(ReaderBaseTheme)
           const isMobileViewport = () =>
             window.innerWidth <= 768 ||
@@ -689,138 +632,130 @@ rendition.hooks.content.register(contents => {
 
           renditionInstance = rendition
           setRendition(rendition)
-        const attachSwipeToDoc = (content) => {
-  if (!content?.document || attachedDocs.has(content.document)) return;
-  attachedDocs.add(content.document);
+          const attachSwipeToDoc = (content) => {
+            if (!content?.document || attachedDocs.has(content.document)) return;
+            attachedDocs.add(content.document);
 
-  const iframe = content.document.defaultView?.frameElement?.parentElement;
-  if (!iframe) return;
+            const iframe = content.document.defaultView?.frameElement?.parentElement;
+            if (!iframe) return;
 
-  // Performance optimization: Use refs instead of state for swipe tracking
-  const swipeState = {
-    startX: 0,
-    startY: 0,
-    deltaX: 0,
-    lastX: 0,
-    lastT: 0,
-    velocity: 0,
-    isDragging: false,
-    rafId: null
-  };
+            let startX = 0;
+            let startY = 0;
+            let deltaX = 0;
+            let lastX = 0;
+            let lastT = 0;
+            let velocity = 0;
+            let isDragging = false;
+            let rafId = null;
 
-  // Optimized transform with hardware acceleration
-  const setTransform = (x) => {
-    if (swipeState.rafId) cancelAnimationFrame(swipeState.rafId);
-    swipeState.rafId = requestAnimationFrame(() => {
-      iframe.style.transform = `translate3d(${x}px, 0, 0)`;
-      iframe.style.willChange = 'transform';
-    });
-  };
+            const threshold = Math.min(window.innerWidth * 0.15, 80); // Slightly lower threshold
 
-  // Smooth reset animation
-  const resetTransform = (animate = true) => {
-    if (swipeState.rafId) cancelAnimationFrame(swipeState.rafId);
-    iframe.style.willChange = 'auto';
-    iframe.style.transition = animate ? 
-      "transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1)" : 
-      "none";
-    iframe.style.transform = "translate3d(0, 0, 0)";
-  };
+            const setTransform = (x) => {
+              if (rafId) cancelAnimationFrame(rafId);
+              rafId = requestAnimationFrame(() => {
+                iframe.style.transform = `translate3d(${x}px, 0, 0)`;
+                iframe.style.willChange = 'transform';
+              });
+            };
 
-  const touchStart = (e) => {
-    if (e.touches.length !== 1) return;
+            const resetTransform = (animate = true) => {
+              if (rafId) cancelAnimationFrame(rafId);
+              iframe.style.willChange = 'auto';
+              iframe.style.transition = animate ? "transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1)" : "none";
+              iframe.style.transform = "translate3d(0, 0, 0)";
+            };
 
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || 
-        ShowTTSPlayer || ShowContextMenu) return;
+            const touchStart = (e) => {
+              if (e.touches.length !== 1) return;
 
-    swipeState.startX = swipeState.lastX = e.touches[0].clientX;
-    swipeState.startY = e.touches[0].clientY;
-    swipeState.deltaX = 0;
-    swipeState.velocity = 0;
-    swipeState.isDragging = false;
-    swipeState.lastT = e.timeStamp;
-    
-    iframe.style.transition = "none";
-    iframe.style.willChange = 'transform';
-  };
+              // Don't interfere with panels
+              if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-  const touchMove = (e) => {
-    if (e.touches.length !== 1) return;
+              startX = lastX = e.touches[0].clientX;
+              startY = e.touches[0].clientY;
+              deltaX = 0;
+              velocity = 0;
+              isDragging = false;
+              lastT = e.timeStamp;
+              iframe.style.transition = "none";
+              iframe.style.willChange = 'transform';
+            };
 
-    // Skip if panels are open
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || 
-        ShowTTSPlayer || ShowContextMenu) return;
+            const touchMove = (e) => {
+              if (e.touches.length !== 1) return;
 
-    const x = e.touches[0].clientX;
-    const y = e.touches[0].clientY;
-    const dx = x - swipeState.startX;
-    const dy = y - swipeState.startY;
+              // Don't interfere with panels
+              if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-    // Detect horizontal swipe with threshold
-    if (!swipeState.isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) {
-      swipeState.isDragging = true;
-      e.preventDefault();
-    }
+              const x = e.touches[0].clientX;
+              const y = e.touches[0].clientY;
+              const dx = x - startX;
+              const dy = y - startY;
 
-    if (!swipeState.isDragging) return;
+              // Only start dragging if it's clearly a horizontal swipe
+              if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) {
+                isDragging = true;
+                setIsSwiping(true);
+                e.preventDefault(); // Only prevent default when we're sure it's a swipe
+              }
 
-    swipeState.deltaX = dx;
+              if (!isDragging) return;
 
-    // Calculate velocity for momentum
-    const dt = Math.max(1, e.timeStamp - swipeState.lastT);
-    swipeState.velocity = (x - swipeState.lastX) / dt;
-    swipeState.lastX = x;
-    swipeState.lastT = e.timeStamp;
+              deltaX = dx;
 
-    setTransform(swipeState.deltaX);
-  };
+              // Calculate velocity for momentum
+              const dt = Math.max(1, e.timeStamp - lastT);
+              velocity = (x - lastX) / dt;
+              lastX = x;
+              lastT = e.timeStamp;
 
-  const touchEnd = () => {
-    if (!swipeState.isDragging) {
-      resetTransform();
-      return;
-    }
+              setTransform(deltaX);
+            };
 
-    const distance = Math.abs(swipeState.deltaX);
-    const speed = Math.abs(swipeState.velocity);
-    const threshold = Math.min(window.innerWidth * 0.15, 80);
+            const touchEnd = () => {
+              if (!isDragging) {
+                resetTransform();
+                setIsSwiping(false);
+                return;
+              }
 
-    // Dynamic threshold based on velocity and distance
-    const passed = distance > threshold || speed > 0.3;
+              const distance = Math.abs(deltaX);
+              const speed = Math.abs(velocity);
 
-    // Adaptive animation duration
-    const baseDuration = 250;
-    const duration = Math.min(400, Math.max(180, 
-      baseDuration + (distance / window.innerWidth) * 150
-    ));
-    const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)";
+              // More sensitive detection - pass if distance OR speed is sufficient
+              const passed = distance > threshold || speed > 0.3;
 
-    if (passed && renditionInstance) {
-      iframe.style.transition = `transform ${duration}ms ${easing}`;
-      iframe.style.transform = `translate3d(${swipeState.deltaX < 0 ? 
-        -window.innerWidth : window.innerWidth}px, 0, 0)`;
+              // Dynamic duration based on swipe speed
+              const baseDuration = 250;
+              const duration = Math.min(400, Math.max(180, baseDuration + (distance / window.innerWidth) * 150));
+              const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)";
 
-      setTimeout(() => {
-        if (swipeState.deltaX < 0) {
-          renditionInstance.next();
-        } else {
-          renditionInstance.prev();
-        }
-        resetTransform(false);
-      }, duration);
-    } else {
-      resetTransform();
-    }
+              if (passed && renditionInstance) {
+                iframe.style.transition = `transform ${duration}ms ${easing}`;
+                iframe.style.transform = `translate3d(${deltaX < 0 ? -window.innerWidth : window.innerWidth}px, 0, 0)`;
 
-    swipeState.isDragging = false;
-  };
+                setTimeout(() => {
+                  if (deltaX < 0) {
+                    renditionInstance.next();
+                  } else {
+                    renditionInstance.prev();
+                  }
+                  resetTransform(false);
+                  setIsSwiping(false);
+                }, duration);
+              } else {
+                resetTransform();
+                setIsSwiping(false);
+              }
 
-  // Optimized event listeners
-  content.document.addEventListener("touchstart", touchStart, { passive: true });
-  content.document.addEventListener("touchmove", touchMove, { passive: false });
-  content.document.addEventListener("touchend", touchEnd, { passive: true });
-};
+              isDragging = false;
+            };
+
+            // Use passive: false for touchmove to allow preventDefault
+            content.document.addEventListener("touchstart", touchStart, { passive: true });
+            content.document.addEventListener("touchmove", touchMove, { passive: false });
+            content.document.addEventListener("touchend", touchEnd, { passive: true });
+          };
 
           rendition.getContents().forEach(attachSwipeToDoc)
           rendition.on("rendered", (_section, content) => {
@@ -1131,7 +1066,7 @@ rendition.hooks.content.register(contents => {
 
   return (
     <div
-      className={`reader ${IsTransitioning ? "reader--transitioning" : ""} ${IsMobile ? "reader--mobile" : "reader--desktop"}`}
+      className={`reader ${isTransitioning ? "reader--transitioning" : ""} ${IsMobile ? "reader--mobile" : "reader--desktop"}`}
     >
       <div className={`reader__header 
   ${ShowUI ? "reader__header--show" : ""} 
@@ -1342,4 +1277,4 @@ rendition.hooks.content.register(contents => {
   )
 }
 
-export default ReaderMobilePage
+export default ReaderMobilePage;
