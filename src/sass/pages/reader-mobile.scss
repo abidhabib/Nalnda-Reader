@@ -7,6 +7,13 @@
   background-color: transparent !important;
   box-shadow: none !important;
 }
+#book__reader {
+  iframe {
+    transform: translate3d(0, 0, 0);
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    will-change: transform;
+  }
+}
 .reader__header__right{
   display: flex;
   align-items: center;
