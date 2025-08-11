@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import axios from "axios"
 import Epub, { EpubCFI } from "epubjs"
+import { AnimatePresence, motion } from "framer-motion";
 
 import useDebounce from "../hook/useDebounce"
 
@@ -45,7 +46,9 @@ const ReaderMobilePage = () => {
   const dispatch = useDispatch()
   const [searchParams] = useSearchParams()
   const UserState = useSelector((state) => state.UserState)
-
+  const [currentPageKey, setCurrentPageKey] = useState(0); // Track page changes
+ const [isAnimating, setIsAnimating] = useState(false);
+  const animationRef = useRef(null);
   // State management
   const [Loading, setLoading] = useState(false)
   const [IsReady, setIsReady] = useState(false)
@@ -99,10 +102,13 @@ const ReaderMobilePage = () => {
     }
   }, [])
 
+ const handlePageChange = useCallback(() => {
+    setCurrentPageKey(prev => prev + 1); // Increment key to trigger animation
+  }, []);
 
   useEffect(() => {
     const checkIsMobile = () => {
-      setIsMobile(window.innerWidth <= 768); 
+      setIsMobile(window.innerWidth <= 768);
     };
 
     checkIsMobile();
@@ -111,6 +117,11 @@ const ReaderMobilePage = () => {
 
     return () => {
       window.removeEventListener('resize', checkIsMobile);
+    };
+  }, []);
+    useEffect(() => {
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, []);
   useEffect(() => {
@@ -255,108 +266,187 @@ const ReaderMobilePage = () => {
       setProgress(Number(e.target.value))
     }
   }
+const navigatePage = useCallback(
+    (direction) => {
+      if (!Rendition || isAnimating) return Promise.resolve();
+      
+      setIsAnimating(true);
+      GaTracker(`event_page_nav_${direction}`);
 
-const navigatePage = useCallback((direction) => {
-  if (!Rendition) return Promise.resolve()
+      // Calculate animation properties
+      const duration = 280;
+      const startTime = performance.now();
+      const bookElement = document.getElementById('book__reader');
+      if (!bookElement) return;
+      
+      // Set initial animation state
+      bookElement.style.transition = 'none';
+      bookElement.style.transform = `translate3d(${direction === 'next' ? '0' : '0'}, 0, 0)`;
+      bookElement.style.willChange = 'transform';
+      bookElement.style.opacity = '1';
 
-  // Add visual feedback
-  setIsTransitioning(true)
-  
-  const promise = direction === 'next' 
-    ? Rendition.next({ transition: 'slide', duration: 280 })
-    : Rendition.prev({ transition: 'slide', duration: 280 })
+      // Render animation frame
+      const animate = (time) => {
+        const elapsed = time - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3); // Cubic ease-out
+        
+        if (direction === 'next') {
+          bookElement.style.transform = `translate3d(${-ease * 20}px, 0, 0)`;
+          bookElement.style.opacity = `${1 - ease * 0.3}`;
+        } else {
+          bookElement.style.transform = `translate3d(${ease * 20}px, 0, 0)`;
+          bookElement.style.opacity = `${1 - ease * 0.3}`;
+        }
+        
+        if (progress < 1) {
+          animationRef.current = requestAnimationFrame(animate);
+        }
+      };
+      
+      animationRef.current = requestAnimationFrame(animate);
 
-  // Reset transitioning state
-  promise.finally(() => {
-    setTimeout(() => {
-      setIsTransitioning(false)
-    }, 50)
-  })
+      // Execute page turn after animation
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          Rendition[direction === 'next' ? 'next' : 'prev']()
+            .then(() => {
+              // Reset styles after navigation
+              bookElement.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+              bookElement.style.transform = 'translate3d(0, 0, 0)';
+              bookElement.style.opacity = '1';
+              
+              // Smooth reset after navigation
+              setTimeout(() => {
+                bookElement.style.transition = '';
+                bookElement.style.willChange = '';
+                setIsAnimating(false);
+              }, 300);
+              resolve();
+            })
+            .catch((err) => {
+              console.warn('Navigation error:', err);
+              setIsAnimating(false);
+              resolve();
+            });
+        }, duration);
+      });
+    },
+    [Rendition, isAnimating]
+  );
+  // Replace your complex swipe handling with this clean version
+  useEffect(() => {
+    if (!Rendition) return;
 
-  return promise
-}, [Rendition])
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isHorizontalSwipe = false;
 
-
-useEffect(() => {
-  if (!Rendition) return;
-
-  let startX = 0;
-  let isSwiping = false;
-
-  const handleTouchStart = (e) => {
-    if (e.touches.length !== 1) return;
-
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-
-    startX = e.touches[0].clientX;
-    isSwiping = false;
-  };
-
-  const handleTouchMove = (e) => {
-    if (!startX) return;
-
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-
-    const touchX = e.touches[0].clientX;
-    const deltaX = touchX - startX;
-    const startY = e.touches[0].clientY;
-
-    // Only consider it a swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > Math.abs(e.touches[0].clientY - startY) && Math.abs(deltaX) > 30) {
-      isSwiping = true;
-      e.preventDefault(); // Prevent scrolling during swipe
-    }
-  };
-
-  const handleTouchEnd = (e) => {
-    if (!isSwiping || !startX) {
-      startX = 0;
-      isSwiping = false;
-      return;
-    }
-
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
-      startX = 0;
-      isSwiping = false;
-      return;
-    }
-
-    const touchX = e.changedTouches[0].clientX;
-    const deltaX = touchX - startX;
-    const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
-
-    if (Math.abs(deltaX) > swipeThreshold) {
-      if (deltaX > 0) {
-        // Swipe right - go to previous page
-        navigatePage("prev");
-      } else {
-        // Swipe left - go to next page
-        navigatePage("next");
+    const handleTouchStart = (e) => {
+      // Don't interfere with panels or text selection
+      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
+        return;
       }
+
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        isHorizontalSwipe = false;
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (!touchStartX || !touchStartY) return;
+
+      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
+        return;
+      }
+
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const deltaX = currentX - touchStartX;
+      const deltaY = currentY - touchStartY;
+
+      // Detect clear horizontal intent early
+      if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        isHorizontalSwipe = true;
+        if (Math.abs(deltaX) > 20) {
+          e.preventDefault(); // Prevent only after clear intent
+        }
+      }
+        if (IsSwiping) {
+        const currentX = e.touches[0].clientX;
+        const deltaX = currentX - touchStartX;
+        const translateX = Math.min(Math.max(deltaX, -100), 100) / 3;
+        
+        const bookElement = document.getElementById('book__reader');
+        if (bookElement) {
+         bookElement.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+        bookElement.style.transform = 'translate3d(0, 0, 0)';
+        bookElement.style.opacity = '1';
+        setTimeout(() => {
+          bookElement.style.transition = '';
+        }, 300);
+        }
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      if (!isHorizontalSwipe || !touchStartX) {
+        resetTouchState();
+        return;
+      }
+
+      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
+        resetTouchState();
+        return;
+      }
+
+      const endX = e.changedTouches[0].clientX;
+      const deltaX = endX - touchStartX;
+      const swipeDistance = Math.abs(deltaX);
+      const swipeThreshold = window.innerWidth * 0.1; // 10% of screen width
+
+      // Simple, reliable detection
+      if (swipeDistance > swipeThreshold) {
+        setIsTransitioning(true);
+
+        if (deltaX < 0) {
+          // Swipe left - next page
+          Rendition.next()
+            .finally(() => setTimeout(() => setIsTransitioning(false), 100));
+        } else {
+          // Swipe right - previous page
+          Rendition.prev()
+            .finally(() => setTimeout(() => setIsTransitioning(false), 100));
+        }
+      }
+
+      resetTouchState();
+    };
+
+    const resetTouchState = () => {
+      touchStartX = 0;
+      touchStartY = 0;
+      isHorizontalSwipe = false;
+    };
+
+    // Attach to book reader container only
+    const bookElement = document.getElementById('book__reader');
+    if (bookElement) {
+      bookElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+      bookElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+      bookElement.addEventListener('touchend', handleTouchEnd, { passive: true });
     }
 
-    startX = 0;
-    isSwiping = false;
-  };
-
-  // Attach touch events to the book reader container
-  const bookReader = document.getElementById('book__reader');
-  if (bookReader) {
-    bookReader.addEventListener('touchstart', handleTouchStart, { passive: false });
-    bookReader.addEventListener('touchmove', handleTouchMove, { passive: false });
-    bookReader.addEventListener('touchend', handleTouchEnd, { passive: true });
-  }
-
-  return () => {
-    if (bookReader) {
-      bookReader.removeEventListener('touchstart', handleTouchStart);
-      bookReader.removeEventListener('touchmove', handleTouchMove);
-      bookReader.removeEventListener('touchend', handleTouchEnd);
-    }
-  };
-}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
+    return () => {
+      if (bookElement) {
+        bookElement.removeEventListener('touchstart', handleTouchStart);
+        bookElement.removeEventListener('touchmove', handleTouchMove);
+        bookElement.removeEventListener('touchend', handleTouchEnd);
+      }
+    };
+  }, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, ShowContextMenu]);
 
   const openFullscreen = useCallback(() => {
     const elem = document.documentElement
@@ -641,132 +731,130 @@ useEffect(() => {
 
           renditionInstance = rendition
           setRendition(rendition)
+          const attachSwipeToDoc = (content) => {
+            if (!content?.document || attachedDocs.has(content.document)) return;
+            attachedDocs.add(content.document);
 
-const attachSwipeToDoc = (content) => {
-  if (!content?.document || attachedDocs.has(content.document)) return;
-  attachedDocs.add(content.document);
+            const iframe = content.document.defaultView?.frameElement?.parentElement;
+            if (!iframe) return;
 
-  const iframe = content.document.defaultView?.frameElement?.parentElement;
-  if (!iframe) return;
+            let startX = 0;
+            let startY = 0;
+            let deltaX = 0;
+            let lastX = 0;
+            let lastT = 0;
+            let velocity = 0;
+            let isDragging = false;
+            let rafId = null;
 
-  let startX = 0;
-  let startY = 0;
-  let deltaX = 0;
-  let lastX = 0;
-  let lastT = 0;
-  let velocity = 0;
-  let isDragging = false;
-  let rafId = null;
+            const threshold = Math.min(window.innerWidth * 0.15, 80); // Slightly lower threshold
 
-  const threshold = Math.min(window.innerWidth * 0.15, 80); // Slightly lower threshold
+            const setTransform = (x) => {
+              if (rafId) cancelAnimationFrame(rafId);
+              rafId = requestAnimationFrame(() => {
+                iframe.style.transform = `translate3d(${x}px, 0, 0)`;
+                iframe.style.willChange = 'transform';
+              });
+            };
 
-  const setTransform = (x) => {
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(() => {
-      iframe.style.transform = `translate3d(${x}px, 0, 0)`;
-      iframe.style.willChange = 'transform';
-    });
-  };
+            const resetTransform = (animate = true) => {
+              if (rafId) cancelAnimationFrame(rafId);
+              iframe.style.willChange = 'auto';
+              iframe.style.transition = animate ? "transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1)" : "none";
+              iframe.style.transform = "translate3d(0, 0, 0)";
+            };
 
-  const resetTransform = (animate = true) => {
-    if (rafId) cancelAnimationFrame(rafId);
-    iframe.style.willChange = 'auto';
-    iframe.style.transition = animate ? "transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1)" : "none";
-    iframe.style.transform = "translate3d(0, 0, 0)";
-  };
+            const touchStart = (e) => {
+              if (e.touches.length !== 1) return;
 
-  const touchStart = (e) => {
-    if (e.touches.length !== 1) return;
+              // Don't interfere with panels
+              if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
+              startX = lastX = e.touches[0].clientX;
+              startY = e.touches[0].clientY;
+              deltaX = 0;
+              velocity = 0;
+              isDragging = false;
+              lastT = e.timeStamp;
+              iframe.style.transition = "none";
+              iframe.style.willChange = 'transform';
+            };
 
-    startX = lastX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    deltaX = 0;
-    velocity = 0;
-    isDragging = false;
-    lastT = e.timeStamp;
-    iframe.style.transition = "none";
-    iframe.style.willChange = 'transform';
-  };
+            const touchMove = (e) => {
+              if (e.touches.length !== 1) return;
 
-  const touchMove = (e) => {
-    if (e.touches.length !== 1) return;
+              // Don't interfere with panels
+              if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
+              const x = e.touches[0].clientX;
+              const y = e.touches[0].clientY;
+              const dx = x - startX;
+              const dy = y - startY;
 
-    const x = e.touches[0].clientX;
-    const y = e.touches[0].clientY;
-    const dx = x - startX;
-    const dy = y - startY;
+              // Only start dragging if it's clearly a horizontal swipe
+              if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) {
+                isDragging = true;
+                setIsSwiping(true);
+                e.preventDefault(); // Only prevent default when we're sure it's a swipe
+              }
 
-    // Only start dragging if it's clearly a horizontal swipe
-    if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) {
-      isDragging = true;
-      setIsSwiping(true);
-      e.preventDefault(); // Only prevent default when we're sure it's a swipe
-    }
+              if (!isDragging) return;
 
-    if (!isDragging) return;
+              deltaX = dx;
 
-    deltaX = dx;
+              // Calculate velocity for momentum
+              const dt = Math.max(1, e.timeStamp - lastT);
+              velocity = (x - lastX) / dt;
+              lastX = x;
+              lastT = e.timeStamp;
 
-    // Calculate velocity for momentum
-    const dt = Math.max(1, e.timeStamp - lastT);
-    velocity = (x - lastX) / dt;
-    lastX = x;
-    lastT = e.timeStamp;
+              setTransform(deltaX);
+            };
 
-    setTransform(deltaX);
-  };
+            const touchEnd = () => {
+              if (!isDragging) {
+                resetTransform();
+                setIsSwiping(false);
+                return;
+              }
 
-  const touchEnd = () => {
-    if (!isDragging) {
-      resetTransform();
-      setIsSwiping(false);
-      return;
-    }
+              const distance = Math.abs(deltaX);
+              const speed = Math.abs(velocity);
 
-    const distance = Math.abs(deltaX);
-    const speed = Math.abs(velocity);
+              // More sensitive detection - pass if distance OR speed is sufficient
+              const passed = distance > threshold || speed > 0.3;
 
-    // More sensitive detection - pass if distance OR speed is sufficient
-    const passed = distance > threshold || speed > 0.3;
+              // Dynamic duration based on swipe speed
+              const baseDuration = 250;
+              const duration = Math.min(400, Math.max(180, baseDuration + (distance / window.innerWidth) * 150));
+              const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)";
 
-    // Dynamic duration based on swipe speed
-    const baseDuration = 250;
-    const duration = Math.min(400, Math.max(180, baseDuration + (distance / window.innerWidth) * 150));
-    const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)";
+              if (passed && renditionInstance) {
+                iframe.style.transition = `transform ${duration}ms ${easing}`;
+                iframe.style.transform = `translate3d(${deltaX < 0 ? -window.innerWidth : window.innerWidth}px, 0, 0)`;
 
-    if (passed && renditionInstance) {
-      iframe.style.transition = `transform ${duration}ms ${easing}`;
-      iframe.style.transform = `translate3d(${deltaX < 0 ? -window.innerWidth : window.innerWidth}px, 0, 0)`;
+                setTimeout(() => {
+                  if (deltaX < 0) {
+                    renditionInstance.next();
+                  } else {
+                    renditionInstance.prev();
+                  }
+                  resetTransform(false);
+                  setIsSwiping(false);
+                }, duration);
+              } else {
+                resetTransform();
+                setIsSwiping(false);
+              }
 
-      setTimeout(() => {
-        if (deltaX < 0) {
-          renditionInstance.next();
-        } else {
-          renditionInstance.prev();
-        }
-        resetTransform(false);
-        setIsSwiping(false);
-      }, duration);
-    } else {
-      resetTransform();
-      setIsSwiping(false);
-    }
+              isDragging = false;
+            };
 
-    isDragging = false;
-  };
-
-  // Use passive: false for touchmove to allow preventDefault
-  content.document.addEventListener("touchstart", touchStart, { passive: true });
-  content.document.addEventListener("touchmove", touchMove, { passive: false });
-  content.document.addEventListener("touchend", touchEnd, { passive: true });
-};
-
+            // Use passive: false for touchmove to allow preventDefault
+            content.document.addEventListener("touchstart", touchStart, { passive: true });
+            content.document.addEventListener("touchmove", touchMove, { passive: false });
+            content.document.addEventListener("touchend", touchEnd, { passive: true });
+          };
 
           rendition.getContents().forEach(attachSwipeToDoc)
           rendition.on("rendered", (_section, content) => {
@@ -899,6 +987,8 @@ const attachSwipeToDoc = (content) => {
     if (!IsReady || !Rendition) return
 
     const handleRelocated = (event) => {
+            handlePageChange(); // Trigger animation on page change
+
       try {
         if (!event || !event.start) return
 
@@ -1076,93 +1166,95 @@ const attachSwipeToDoc = (content) => {
   }
 
   return (
+        <div className={`reader ${IsTransitioning ? "reader--transitioning" : ""}`}>
+
     <div
       className={`reader ${IsTransitioning ? "reader--transitioning" : ""} ${IsMobile ? "reader--mobile" : "reader--desktop"}`}
     >
-<div className={`reader__header 
+      <div className={`reader__header 
   ${ShowUI ? "reader__header--show" : ""} 
   ${(ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) ? "reader__header--hidden" : ""}`}
->
-  <div className="reader__header__left">
-    <div className="reader__header__left__timer">
-      {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
-    </div>
-  </div>
-  
-  <div className="reader__header__center">
-    <div className="typo__body--2 typo__color--n700 typo__transform--capital">
-      {BookMeta.title || "Untitled"}
-    </div>
-  </div>
-  
-  <div className="reader__header__right">
-    <div className="reader__header__right__scroll-container">
-      <Button
-        className="reader__header__right__hide-on-mobile"
-        type="icon"
-        onClick={() => setFullscreen((s) => !s)}
-        aria-label={Fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       >
-        {Fullscreen ? <FaCompress /> : <FaExpand />}
-      </Button>
-      <Button
-        type="icon"
-        className={ShowTocPanel ? "reader__header__right__button--active" : ""}
-        onClick={() => {
-          hideAllPanel({ toc: false })
-          setShowTocPanel((s) => !s)
-        }}
-        aria-label="Table of contents"
-      >
-        <FaList />
-      </Button>
-      <Button
-        type="icon"
-        className={ShowAnnotationPanel ? "reader__header__right__button--active" : ""}
-        onClick={() => {
-          hideAllPanel({ annotation: false })
-          setShowAnnotationPanel((s) => !s)
-        }}
-        aria-label="Annotations"
-      >
-        <FaQuoteLeft />
-      </Button>
-      <Button
-        type="icon"
-        className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
-        onClick={toggleBookMark}
-        aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
-      >
-        <FaBookmark />
-        {PageBookmarked && (
-          <span className="bookmark-indicator-dot"></span>
-        )}
-      </Button>
-      <Button
-        type="icon"
-        className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
-        onClick={() => {
-          hideAllPanel({ customizer: false })
-          setShowCustomizerPanel((s) => !s)
-        }}
-        aria-label="Text settings"
-      >
-        <FaFont />
-      </Button>
-      <Button
-        type="icon"
-        className={ShowTTSPlayer ? "reader__header__right__button--active" : ""}
-        onClick={() => {
-          hideAllPanel({ tts: false })
-          setShowTTSPlayer((s) => !s)
-        }}
-        aria-label="Text to speech"
-      >
-        <FaVolumeUp />
-      </Button>
-    </div>
-  </div>
-</div>
+        <div className="reader__header__left">
+          <div className="reader__header__left__timer">
+            {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
+          </div>
+        </div>
+
+        <div className="reader__header__center">
+          <div className="typo__body--2 typo__color--n700 typo__transform--capital">
+            {BookMeta.title || "Untitled"}
+          </div>
+        </div>
+
+        <div className="reader__header__right">
+          <div className="reader__header__right__scroll-container">
+            <Button
+              className="reader__header__right__hide-on-mobile"
+              type="icon"
+              onClick={() => setFullscreen((s) => !s)}
+              aria-label={Fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {Fullscreen ? <FaCompress /> : <FaExpand />}
+            </Button>
+            <Button
+              type="icon"
+              className={ShowTocPanel ? "reader__header__right__button--active" : ""}
+              onClick={() => {
+                hideAllPanel({ toc: false })
+                setShowTocPanel((s) => !s)
+              }}
+              aria-label="Table of contents"
+            >
+              <FaList />
+            </Button>
+            <Button
+              type="icon"
+              className={ShowAnnotationPanel ? "reader__header__right__button--active" : ""}
+              onClick={() => {
+                hideAllPanel({ annotation: false })
+                setShowAnnotationPanel((s) => !s)
+              }}
+              aria-label="Annotations"
+            >
+              <FaQuoteLeft />
+            </Button>
+            <Button
+              type="icon"
+              className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
+              onClick={toggleBookMark}
+              aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
+            >
+              <FaBookmark />
+              {PageBookmarked && (
+                <span className="bookmark-indicator-dot"></span>
+              )}
+            </Button>
+            <Button
+              type="icon"
+              className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
+              onClick={() => {
+                hideAllPanel({ customizer: false })
+                setShowCustomizerPanel((s) => !s)
+              }}
+              aria-label="Text settings"
+            >
+              <FaFont />
+            </Button>
+            <Button
+              type="icon"
+              className={ShowTTSPlayer ? "reader__header__right__button--active" : ""}
+              onClick={() => {
+                hideAllPanel({ tts: false })
+                setShowTTSPlayer((s) => !s)
+              }}
+              aria-label="Text to speech"
+            >
+              <FaVolumeUp />
+            </Button>
+          </div>
+        </div>
+      </div>
       <div className="reader__container" ref={readerContainerRef}>
         <div
           className={
@@ -1215,75 +1307,84 @@ const attachSwipeToDoc = (content) => {
           </div>
         )}
 
-<SidePanel 
-  show={ShowTocPanel} 
-  setShow={setShowTocPanel} 
-  position="right"
->
-  <TocPanel
-    onSelect={() => {
-      hideAllPanel({ toc: false })
-      setShowTocPanel(false)
-    }}
-    rendition={Rendition}
-  />
-</SidePanel>
+        <SidePanel
+          show={ShowTocPanel}
+          setShow={setShowTocPanel}
+          position="right"
+        >
+          <TocPanel
+            onSelect={() => {
+              hideAllPanel({ toc: false })
+              setShowTocPanel(false)
+            }}
+            rendition={Rendition}
+          />
+        </SidePanel>
 
-<SidePanel 
-  show={ShowAnnotationPanel} 
-  setShow={setShowAnnotationPanel} 
-  position="right"
->
-  <AnnotationPanel
-    mobileView={true}
-    preview={Preview}
-    rendition={Rendition}
-    bookMeta={BookMeta}
-    show={ShowAnnotationPanel}
-    addAnnotationRef={addAnnotationRef}
-    hideModal={() => {
-      setShowAnnotationPanel(false)
-    }}
-    onRemove={() => {
-      setShowAnnotationPanel(false)
-    }}
-  />
-</SidePanel>
+        <SidePanel
+          show={ShowAnnotationPanel}
+          setShow={setShowAnnotationPanel}
+          position="right"
+        >
+          <AnnotationPanel
+            mobileView={true}
+            preview={Preview}
+            rendition={Rendition}
+            bookMeta={BookMeta}
+            show={ShowAnnotationPanel}
+            addAnnotationRef={addAnnotationRef}
+            hideModal={() => {
+              setShowAnnotationPanel(false)
+            }}
+            onRemove={() => {
+              setShowAnnotationPanel(false)
+            }}
+          />
+        </SidePanel>
 
-<SidePanel
-  show={ShowCustomizerPanel}
-  setShow={setShowCustomizerPanel}
-  position="right-bottom"
-  className="sidepanel--customizer"  // Only this prop needed
->
-  <Customizer initialFontSize={100} rendition={Rendition} />
-</SidePanel>
+        <SidePanel
+          show={ShowCustomizerPanel}
+          setShow={setShowCustomizerPanel}
+          position="right-bottom"
+          className="sidepanel--customizer"  // Only this prop needed
+        >
+          <Customizer initialFontSize={100} rendition={Rendition} />
+        </SidePanel>
       </div>
 
-{ShowUI && !(ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) && (
-  <nav className="reader__nav reader__nav--show">
-    <div className="reader__nav__value">
-      <div className="reader__nav__value__chapter-title typo__gray--n600 typo__transform--capital">
-        {ChapterName || BookMeta.title || ""}
-      </div>
-      <div>{Math.floor((debouncedProgress * 100) / (TotalLocations || 1)) || "0"}%</div>
-    </div>
-    <div className="reader__nav__progress">
-      <RangeSlider
-        value={Progress}
-        onChange={handlePageUpdate}
-        max={TotalLocations || 100}
-        className="reader__nav__progress"
-      />
-    </div>
-  </nav>
-)}
+      {ShowUI && !(ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) && (
+        <nav className="reader__nav reader__nav--show">
+          <div className="reader__nav__value">
+            <div className="reader__nav__value__chapter-title typo__gray--n600 typo__transform--capital">
+              {ChapterName || BookMeta.title || ""}
+            </div>
+            <div>{Math.floor((debouncedProgress * 100) / (TotalLocations || 1)) || "0"}%</div>
+          </div>
+          <div className="reader__nav__progress">
+            <RangeSlider
+              value={Progress}
+              onChange={handlePageUpdate}
+              max={TotalLocations || 100}
+              className="reader__nav__progress"
+            />
+          </div>
+        </nav>
+      )}
 
       <TextToSpeechPlayer
         rendition={Rendition}
         isVisible={ShowTTSPlayer}
         onClose={() => setShowTTSPlayer(false)}
       />
+        <div id="book__reader" 
+           className="reader__container__book"
+           style={{
+             transform: 'translate3d(0, 0, 0)',
+             opacity: 1,
+             transition: 'transform 0.3s ease, opacity 0.3s ease'
+           }}>
+      </div>
+      </div>
     </div>
   )
 }
