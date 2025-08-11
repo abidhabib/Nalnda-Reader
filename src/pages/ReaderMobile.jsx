@@ -76,7 +76,6 @@ const ReaderMobilePage = () => {
   const [TouchStartX, setTouchStartX] = useState(null)
   const [TouchStartY, setTouchStartY] = useState(null)
   const [IsSwiping, setIsSwiping] = useState(false)
-  const [SwipeDirection, setSwipeDirection] = useState(null)
   const [IsMobile, setIsMobile] = useState(false)
 
   const seeking = useRef(false)
@@ -257,125 +256,108 @@ const ReaderMobilePage = () => {
     }
   }
 
-// Add to your component's useEffect or initialization
-useEffect(() => {
-  const bookReader = document.getElementById('book__reader');
-  if (bookReader) {
-    // Enable smooth scrolling
-    bookReader.style.scrollBehavior = 'smooth';
-    
-    // Add momentum scrolling for touch devices
-    bookReader.style.webkitOverflowScrolling = 'touch';
-    
-    // Optimize rendering
-    bookReader.style.transform = 'translateZ(0)';
-    bookReader.style.willChange = 'transform';
-  }
-}, []);
-
-// Enhanced navigatePage function with smooth transitions
 const navigatePage = useCallback((direction) => {
   if (!Rendition) return;
+
+  // Add smooth transition class
+  setIsTransitioning(true);
   
-  // Add visual feedback
-  const buttons = document.querySelectorAll('.reader__container__prev-btn__button, .reader__container__next-btn__button');
-  buttons.forEach(btn => btn.style.transform = 'scale(0.95)');
-  
+  const transitionPromise = direction === 'next' 
+    ? Rendition.next({ transition: 'slide', duration: 250 })
+    : Rendition.prev({ transition: 'slide', duration: 250 });
+
+  // Reset transitioning state after animation
   setTimeout(() => {
-    buttons.forEach(btn => btn.style.transform = '');
-  }, 150);
-  
-  // Navigate with smooth transition
-  if (direction === 'next') {
-    Rendition.next({
-      transition: 'slide',
-      duration: 300
-    });
-  } else {
-    Rendition.prev({
-      transition: 'slide',
-      duration: 300
-    });
-  }
+    setIsTransitioning(false);
+  }, 300);
+
+  return transitionPromise;
 }, [Rendition]);
-  const handleTouchStart = useCallback(
-    (e) => {
-      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return
+useEffect(() => {
+  if (!Rendition) return;
 
-      if (e.touches && e.touches.length === 1) {
-        setTouchStartX(e.touches[0].clientX)
-        setTouchStartY(e.touches[0].clientY)
-        setIsSwiping(false)
-        e.preventDefault()
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let isSwiping = false;
+
+  const handleTouchStart = (e) => {
+    if (e.touches.length !== 1) return;
+    
+    // Don't interfere with panels
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
+    
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    isSwiping = false;
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartX || !touchStartY) return;
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
+
+    const touchX = e.touches[0].clientX;
+    const touchY = e.touches[0].clientY;
+    const deltaX = touchX - touchStartX;
+    const deltaY = touchY - touchStartY;
+
+    // Only consider it a swipe if horizontal movement is greater than vertical
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+      isSwiping = true;
+      e.preventDefault(); // Prevent scrolling during swipe
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!isSwiping || !touchStartX) {
+      touchStartX = 0;
+      touchStartY = 0;
+      isSwiping = false;
+      return;
+    }
+
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
+      touchStartX = 0;
+      touchStartY = 0;
+      isSwiping = false;
+      return;
+    }
+
+    const touchX = e.changedTouches[0].clientX;
+    const deltaX = touchX - touchStartX;
+    const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
+
+    if (Math.abs(deltaX) > swipeThreshold) {
+      if (deltaX > 0) {
+        // Swipe right - go to previous page
+        navigatePage("prev");
+      } else {
+        // Swipe left - go to next page
+        navigatePage("next");
       }
-    },
-    [ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer],
-  )
+    }
 
-  const handleTouchMove = useCallback(
-    (e) => {
-      if (!TouchStartX || !TouchStartY) return
-      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return
+    touchStartX = 0;
+    touchStartY = 0;
+    isSwiping = false;
+  };
 
-      if (e.touches && e.touches[0]) {
-        const touchX = e.touches[0].clientX
-        const touchY = e.touches[0].clientY
-        const deltaX = touchX - TouchStartX
-        const deltaY = touchY - TouchStartY
+  // Attach touch events to the book reader container
+  const bookReader = document.getElementById('book__reader');
+  if (bookReader) {
+    bookReader.addEventListener('touchstart', handleTouchStart, { passive: false });
+    bookReader.addEventListener('touchmove', handleTouchMove, { passive: false });
+    bookReader.addEventListener('touchend', handleTouchEnd, { passive: true });
+  }
 
-        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 25) {
-          setIsSwiping(true)
-          e.preventDefault()
-        }
-      }
-    },
-    [TouchStartX, TouchStartY, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer],
-  )
+  return () => {
+    if (bookReader) {
+      bookReader.removeEventListener('touchstart', handleTouchStart);
+      bookReader.removeEventListener('touchmove', handleTouchMove);
+      bookReader.removeEventListener('touchend', handleTouchEnd);
+    }
+  };
+}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
 
-  const handleTouchEnd = useCallback(
-    (e) => {
-      if (!TouchStartX || !TouchStartY || !IsSwiping) {
-        setTouchStartX(null)
-        setTouchStartY(null)
-        setIsSwiping(false)
-        return
-      }
-
-      if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
-        setTouchStartX(null)
-        setTouchStartY(null)
-        setIsSwiping(false)
-        return
-      }
-
-      if (e.changedTouches && e.changedTouches[0]) {
-        const touchX = e.changedTouches[0].clientX
-        const deltaX = touchX - TouchStartX
-
-        if (Math.abs(deltaX) > 25) {
-          if (deltaX > 0) {
-            navigatePage("prev", true)
-          } else {
-            navigatePage("next", true)
-          }
-        }
-      }
-
-      setTouchStartX(null)
-      setTouchStartY(null)
-      setIsSwiping(false)
-    },
-    [
-      TouchStartX,
-      TouchStartY,
-      IsSwiping,
-      navigatePage,
-      ShowTocPanel,
-      ShowAnnotationPanel,
-      ShowCustomizerPanel,
-      ShowTTSPlayer,
-    ],
-  )
 
   const openFullscreen = useCallback(() => {
     const elem = document.documentElement
@@ -995,21 +977,91 @@ const navigatePage = useCallback((direction) => {
     return () => window.removeEventListener("scroll", hideMenu)
   }, [])
 
-  useEffect(() => {
-    const container = readerContainerRef.current
-    if (!container) return
+// ADD THIS NEW USEEFFECT INSTEAD
+useEffect(() => {
+  if (!Rendition) return;
 
-    container.addEventListener("touchstart", handleTouchStart, { passive: false })
-    container.addEventListener("touchmove", handleTouchMove, { passive: false })
-    container.addEventListener("touchend", handleTouchEnd, { passive: false })
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let isSwiping = false;
 
-    return () => {
-      container.removeEventListener("touchstart", handleTouchStart)
-      container.removeEventListener("touchmove", handleTouchMove)
-      container.removeEventListener("touchend", handleTouchEnd)
+  const handleTouchStart = (e) => {
+    if (e.touches.length !== 1) return;
+    
+    // Don't interfere with panels
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
+    
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    isSwiping = false;
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartX || !touchStartY) return;
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
+
+    const touchX = e.touches[0].clientX;
+    const touchY = e.touches[0].clientY;
+    const deltaX = touchX - touchStartX;
+    const deltaY = touchY - touchStartY;
+
+    // Only consider it a swipe if horizontal movement is greater than vertical
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+      isSwiping = true;
+      e.preventDefault(); // Prevent scrolling during swipe
     }
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd])
+  };
 
+  const handleTouchEnd = (e) => {
+    if (!isSwiping || !touchStartX) {
+      touchStartX = 0;
+      touchStartY = 0;
+      isSwiping = false;
+      return;
+    }
+
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
+      touchStartX = 0;
+      touchStartY = 0;
+      isSwiping = false;
+      return;
+    }
+
+    const touchX = e.changedTouches[0].clientX;
+    const deltaX = touchX - touchStartX;
+    const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
+
+    if (Math.abs(deltaX) > swipeThreshold) {
+      if (deltaX > 0) {
+        // Swipe right - go to previous page
+        navigatePage("prev");
+      } else {
+        // Swipe left - go to next page
+        navigatePage("next");
+      }
+    }
+
+    touchStartX = 0;
+    touchStartY = 0;
+    isSwiping = false;
+  };
+
+  // Attach touch events to the book reader container
+  const bookReader = document.getElementById('book__reader');
+  if (bookReader) {
+    bookReader.addEventListener('touchstart', handleTouchStart, { passive: false });
+    bookReader.addEventListener('touchmove', handleTouchMove, { passive: false });
+    bookReader.addEventListener('touchend', handleTouchEnd, { passive: true });
+  }
+
+  return () => {
+    if (bookReader) {
+      bookReader.removeEventListener('touchstart', handleTouchStart);
+      bookReader.removeEventListener('touchmove', handleTouchMove);
+      bookReader.removeEventListener('touchend', handleTouchEnd);
+    }
+  };
+}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -1062,87 +1114,90 @@ const navigatePage = useCallback((direction) => {
     <div
       className={`reader ${IsTransitioning ? "reader--transitioning" : ""} ${IsMobile ? "reader--mobile" : "reader--desktop"}`}
     >
-      <div className={`reader__header 
+<div className={`reader__header 
   ${ShowUI ? "reader__header--show" : ""} 
   ${IsMobile && ShowCustomizerPanel ? "reader__header--hidden" : ""}`}
-      >        <div className="reader__header__left">
-          <div className="reader__header__left__timer">
-            {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
-          </div>
-        </div>
-        <div className="reader__header__center">
-          <div className="typo__body--2 typo__color--n700 typo__transform--capital">
-            {BookMeta.title || "Untitled"}
-          </div>
-        </div>
-        <div className="reader__header__right">
-          <Button
-            className="reader__header__right__hide-on-mobile"
-            type="icon"
-            onClick={() => setFullscreen((s) => !s)}
-            aria-label={Fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          >
-            {Fullscreen ? <FaCompress /> : <FaExpand />}
-          </Button>
-          <Button
-            type="icon"
-            className={ShowTocPanel ? "reader__header__right__button--active" : ""}
-            onClick={() => {
-              hideAllPanel({ toc: false })
-              setShowTocPanel((s) => !s)
-            }}
-            aria-label="Table of contents"
-          >
-            <FaList />
-          </Button>
-          <Button
-            type="icon"
-            className={ShowAnnotationPanel ? "reader__header__right__button--active" : ""}
-            onClick={() => {
-              hideAllPanel({ annotation: false })
-              setShowAnnotationPanel((s) => !s)
-            }}
-            aria-label="Annotations"
-          >
-            <FaQuoteLeft />
-          </Button>
-          <Button
-            type="icon"
-            className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
-            onClick={toggleBookMark}
-            aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
-          >
-            <FaBookmark />
-            {PageBookmarked && (
-              <span className="bookmark-indicator-dot"></span>
-            )}
-          </Button>
-
-          <Button
-            type="icon"
-            className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
-            onClick={() => {
-              hideAllPanel({ customizer: false })
-              setShowCustomizerPanel((s) => !s)
-            }}
-            aria-label="Text settings"
-          >
-            <FaFont />
-          </Button>
-          <Button
-            type="icon"
-            className={ShowTTSPlayer ? "reader__header__right__button--active" : ""}
-            onClick={() => {
-              hideAllPanel({ tts: false })
-              setShowTTSPlayer((s) => !s)
-            }}
-            aria-label="Text to speech"
-          >
-            <FaVolumeUp />
-          </Button>
-        </div>
-      </div>
-
+>
+  <div className="reader__header__left">
+    <div className="reader__header__left__timer">
+      {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
+    </div>
+  </div>
+  
+  <div className="reader__header__center">
+    <div className="typo__body--2 typo__color--n700 typo__transform--capital">
+      {BookMeta.title || "Untitled"}
+    </div>
+  </div>
+  
+  <div className="reader__header__right">
+    <div className="reader__header__right__scroll-container">
+      <Button
+        className="reader__header__right__hide-on-mobile"
+        type="icon"
+        onClick={() => setFullscreen((s) => !s)}
+        aria-label={Fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      >
+        {Fullscreen ? <FaCompress /> : <FaExpand />}
+      </Button>
+      <Button
+        type="icon"
+        className={ShowTocPanel ? "reader__header__right__button--active" : ""}
+        onClick={() => {
+          hideAllPanel({ toc: false })
+          setShowTocPanel((s) => !s)
+        }}
+        aria-label="Table of contents"
+      >
+        <FaList />
+      </Button>
+      <Button
+        type="icon"
+        className={ShowAnnotationPanel ? "reader__header__right__button--active" : ""}
+        onClick={() => {
+          hideAllPanel({ annotation: false })
+          setShowAnnotationPanel((s) => !s)
+        }}
+        aria-label="Annotations"
+      >
+        <FaQuoteLeft />
+      </Button>
+      <Button
+        type="icon"
+        className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
+        onClick={toggleBookMark}
+        aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
+      >
+        <FaBookmark />
+        {PageBookmarked && (
+          <span className="bookmark-indicator-dot"></span>
+        )}
+      </Button>
+      <Button
+        type="icon"
+        className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
+        onClick={() => {
+          hideAllPanel({ customizer: false })
+          setShowCustomizerPanel((s) => !s)
+        }}
+        aria-label="Text settings"
+      >
+        <FaFont />
+      </Button>
+      <Button
+        type="icon"
+        className={ShowTTSPlayer ? "reader__header__right__button--active" : ""}
+        onClick={() => {
+          hideAllPanel({ tts: false })
+          setShowTTSPlayer((s) => !s)
+        }}
+        aria-label="Text to speech"
+      >
+        <FaVolumeUp />
+      </Button>
+    </div>
+  </div>
+</div>
       <div className="reader__container" ref={readerContainerRef}>
         <div
           className={
