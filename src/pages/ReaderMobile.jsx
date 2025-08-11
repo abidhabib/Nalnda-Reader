@@ -76,7 +76,6 @@ const ReaderMobilePage = () => {
   const [TouchStartX, setTouchStartX] = useState(null)
   const [TouchStartY, setTouchStartY] = useState(null)
   const [IsSwiping, setIsSwiping] = useState(false)
-  const [SwipeDirection, setSwipeDirection] = useState(null)
   const [IsMobile, setIsMobile] = useState(false)
 
   const seeking = useRef(false)
