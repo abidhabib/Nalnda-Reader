@@ -1062,87 +1062,90 @@ const navigatePage = useCallback((direction) => {
     <div
       className={`reader ${IsTransitioning ? "reader--transitioning" : ""} ${IsMobile ? "reader--mobile" : "reader--desktop"}`}
     >
-      <div className={`reader__header 
+<div className={`reader__header 
   ${ShowUI ? "reader__header--show" : ""} 
   ${IsMobile && ShowCustomizerPanel ? "reader__header--hidden" : ""}`}
-      >        <div className="reader__header__left">
-          <div className="reader__header__left__timer">
-            {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
-          </div>
-        </div>
-        <div className="reader__header__center">
-          <div className="typo__body--2 typo__color--n700 typo__transform--capital">
-            {BookMeta.title || "Untitled"}
-          </div>
-        </div>
-        <div className="reader__header__right">
-          <Button
-            className="reader__header__right__hide-on-mobile"
-            type="icon"
-            onClick={() => setFullscreen((s) => !s)}
-            aria-label={Fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          >
-            {Fullscreen ? <FaCompress /> : <FaExpand />}
-          </Button>
-          <Button
-            type="icon"
-            className={ShowTocPanel ? "reader__header__right__button--active" : ""}
-            onClick={() => {
-              hideAllPanel({ toc: false })
-              setShowTocPanel((s) => !s)
-            }}
-            aria-label="Table of contents"
-          >
-            <FaList />
-          </Button>
-          <Button
-            type="icon"
-            className={ShowAnnotationPanel ? "reader__header__right__button--active" : ""}
-            onClick={() => {
-              hideAllPanel({ annotation: false })
-              setShowAnnotationPanel((s) => !s)
-            }}
-            aria-label="Annotations"
-          >
-            <FaQuoteLeft />
-          </Button>
-          <Button
-            type="icon"
-            className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
-            onClick={toggleBookMark}
-            aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
-          >
-            <FaBookmark />
-            {PageBookmarked && (
-              <span className="bookmark-indicator-dot"></span>
-            )}
-          </Button>
-
-          <Button
-            type="icon"
-            className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
-            onClick={() => {
-              hideAllPanel({ customizer: false })
-              setShowCustomizerPanel((s) => !s)
-            }}
-            aria-label="Text settings"
-          >
-            <FaFont />
-          </Button>
-          <Button
-            type="icon"
-            className={ShowTTSPlayer ? "reader__header__right__button--active" : ""}
-            onClick={() => {
-              hideAllPanel({ tts: false })
-              setShowTTSPlayer((s) => !s)
-            }}
-            aria-label="Text to speech"
-          >
-            <FaVolumeUp />
-          </Button>
-        </div>
-      </div>
-
+>
+  <div className="reader__header__left">
+    <div className="reader__header__left__timer">
+      {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
+    </div>
+  </div>
+  
+  <div className="reader__header__center">
+    <div className="typo__body--2 typo__color--n700 typo__transform--capital">
+      {BookMeta.title || "Untitled"}
+    </div>
+  </div>
+  
+  <div className="reader__header__right">
+    <div className="reader__header__right__scroll-container">
+      <Button
+        className="reader__header__right__hide-on-mobile"
+        type="icon"
+        onClick={() => setFullscreen((s) => !s)}
+        aria-label={Fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      >
+        {Fullscreen ? <FaCompress /> : <FaExpand />}
+      </Button>
+      <Button
+        type="icon"
+        className={ShowTocPanel ? "reader__header__right__button--active" : ""}
+        onClick={() => {
+          hideAllPanel({ toc: false })
+          setShowTocPanel((s) => !s)
+        }}
+        aria-label="Table of contents"
+      >
+        <FaList />
+      </Button>
+      <Button
+        type="icon"
+        className={ShowAnnotationPanel ? "reader__header__right__button--active" : ""}
+        onClick={() => {
+          hideAllPanel({ annotation: false })
+          setShowAnnotationPanel((s) => !s)
+        }}
+        aria-label="Annotations"
+      >
+        <FaQuoteLeft />
+      </Button>
+      <Button
+        type="icon"
+        className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
+        onClick={toggleBookMark}
+        aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
+      >
+        <FaBookmark />
+        {PageBookmarked && (
+          <span className="bookmark-indicator-dot"></span>
+        )}
+      </Button>
+      <Button
+        type="icon"
+        className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
+        onClick={() => {
+          hideAllPanel({ customizer: false })
+          setShowCustomizerPanel((s) => !s)
+        }}
+        aria-label="Text settings"
+      >
+        <FaFont />
+      </Button>
+      <Button
+        type="icon"
+        className={ShowTTSPlayer ? "reader__header__right__button--active" : ""}
+        onClick={() => {
+          hideAllPanel({ tts: false })
+          setShowTTSPlayer((s) => !s)
+        }}
+        aria-label="Text to speech"
+      >
+        <FaVolumeUp />
+      </Button>
+    </div>
+  </div>
+</div>
       <div className="reader__container" ref={readerContainerRef}>
         <div
           className={
