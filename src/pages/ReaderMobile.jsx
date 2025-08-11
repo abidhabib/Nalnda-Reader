@@ -273,92 +273,123 @@ const navigatePage = useCallback((direction) => {
 
   return transitionPromise;
 }, [Rendition]);
+// Add this useEffect for smooth horizontal swipe handling
 useEffect(() => {
   if (!Rendition) return;
 
-  let touchStartX = 0;
-  let touchStartY = 0;
+  let startX = 0;
   let isSwiping = false;
+  let currentIframe = null;
 
   const handleTouchStart = (e) => {
-    if (e.touches.length !== 1) return;
+    // Don't interfere with panels or text selection
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
+      return;
+    }
     
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-    
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    isSwiping = false;
+    if (e.touches.length === 1) {
+      startX = e.touches[0].clientX;
+      isSwiping = false;
+      
+      // Get current iframe for smooth animation
+      const iframes = document.querySelectorAll('#book__reader iframe');
+      if (iframes.length > 0) {
+        currentIframe = iframes[iframes.length - 1]; // Get the active/main iframe
+      }
+    }
   };
 
   const handleTouchMove = (e) => {
-    if (!touchStartX || !touchStartY) return;
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
+    if (!startX || !currentIframe) return;
+    
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
+      return;
+    }
 
-    const touchX = e.touches[0].clientX;
-    const touchY = e.touches[0].clientY;
-    const deltaX = touchX - touchStartX;
-    const deltaY = touchY - touchStartY;
+    const currentX = e.touches[0].clientX;
+    const deltaX = currentX - startX;
 
-    // Only consider it a swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+    // Only handle horizontal movement (ignore vertical)
+    if (Math.abs(deltaX) > 5) {
       isSwiping = true;
-      e.preventDefault(); // Prevent scrolling during swipe
+      
+      // Apply smooth visual feedback - ONLY horizontal transform
+      currentIframe.style.transition = 'none';
+      currentIframe.style.transform = `translate3d(${deltaX}px, 0, 0)`;
+      currentIframe.style.willChange = 'transform';
+      
+      // Prevent default ONLY for horizontal swipes
+      e.preventDefault();
     }
   };
 
   const handleTouchEnd = (e) => {
-    if (!isSwiping || !touchStartX) {
-      touchStartX = 0;
-      touchStartY = 0;
-      isSwiping = false;
+    if (!isSwiping || !startX || !currentIframe) {
+      resetSwipe();
       return;
     }
 
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
-      touchStartX = 0;
-      touchStartY = 0;
-      isSwiping = false;
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
+      resetSwipe();
       return;
     }
 
-    const touchX = e.changedTouches[0].clientX;
-    const deltaX = touchX - touchStartX;
+    const endX = e.changedTouches[0].clientX;
+    const deltaX = endX - startX;
     const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
 
+    // Smooth completion animation
+    currentIframe.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
+    
     if (Math.abs(deltaX) > swipeThreshold) {
-      if (deltaX > 0) {
-        // Swipe right - go to previous page
-        navigatePage("prev");
-      } else {
-        // Swipe left - go to next page
-        navigatePage("next");
-      }
+      // Complete the page turn
+      const targetX = deltaX < 0 ? -window.innerWidth : window.innerWidth;
+      currentIframe.style.transform = `translate3d(${targetX}px, 0, 0)`;
+      
+      // Navigate after animation
+      setTimeout(() => {
+        if (deltaX < 0) {
+          Rendition.next();
+        } else {
+          Rendition.prev();
+        }
+        resetSwipe();
+      }, 300);
+    } else {
+      // Cancelled swipe - return to original position
+      currentIframe.style.transform = 'translate3d(0, 0, 0)';
+      setTimeout(() => {
+        resetSwipe();
+      }, 300);
     }
-
-    touchStartX = 0;
-    touchStartY = 0;
-    isSwiping = false;
   };
 
-  // Attach touch events to the book reader container
-  const bookReader = document.getElementById('book__reader');
-  if (bookReader) {
-    bookReader.addEventListener('touchstart', handleTouchStart, { passive: false });
-    bookReader.addEventListener('touchmove', handleTouchMove, { passive: false });
-    bookReader.addEventListener('touchend', handleTouchEnd, { passive: true });
+  const resetSwipe = () => {
+    startX = 0;
+    isSwiping = false;
+    if (currentIframe) {
+      currentIframe.style.willChange = 'auto';
+    }
+    currentIframe = null;
+  };
+
+  // Attach event listeners
+  const bookElement = document.getElementById('book__reader');
+  if (bookElement) {
+    bookElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+    bookElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+    bookElement.addEventListener('touchend', handleTouchEnd, { passive: true });
   }
 
+  // Cleanup
   return () => {
-    if (bookReader) {
-      bookReader.removeEventListener('touchstart', handleTouchStart);
-      bookReader.removeEventListener('touchmove', handleTouchMove);
-      bookReader.removeEventListener('touchend', handleTouchEnd);
+    if (bookElement) {
+      bookElement.removeEventListener('touchstart', handleTouchStart);
+      bookElement.removeEventListener('touchmove', handleTouchMove);
+      bookElement.removeEventListener('touchend', handleTouchEnd);
     }
   };
-}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
-
-
+}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, ShowContextMenu]);
   const openFullscreen = useCallback(() => {
     const elem = document.documentElement
     if (elem) {
