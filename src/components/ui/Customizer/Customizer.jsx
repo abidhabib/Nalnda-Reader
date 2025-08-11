@@ -81,10 +81,31 @@ const InstantCustomizer = ({ rendition, isVisible = false }) => {
     setReaderPreferences((rp) => ({ ...rp, lineHeight }))
   }
 
-  const updateMargin = (margin) => {
-    GaTracker("event_customizer_margin_" + margin)
-    setReaderPreferences((rp) => ({ ...rp, margin }))
+const updateMargin = (margin) => {
+  GaTracker("event_customizer_margin_" + margin)
+  
+  // Map margin values to font sizes
+  let fontSizePercentage
+  switch(margin) {
+    case 5:
+      fontSizePercentage = 80
+      break
+    case 10:
+      fontSizePercentage = 90
+      break
+    case 15:
+      fontSizePercentage = 100
+      break
+    default:
+      fontSizePercentage = 80 + (margin * 1.33) // Dynamic calculation
   }
+  
+  setReaderPreferences((rp) => ({ 
+    ...rp, 
+    margin,
+    fontSize: fontSizePercentage
+  }))
+}
 
   const setTheme = (theme = "reader-theme-light") => {
     GaTracker("event_customizer_theme_" + theme)

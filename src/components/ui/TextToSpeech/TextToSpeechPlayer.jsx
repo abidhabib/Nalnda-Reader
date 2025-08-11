@@ -1,4 +1,3 @@
-// TextToSpeechPlayer.jsx — full updated file (replace existing)
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
@@ -7,281 +6,246 @@ import {
   FaPlay,
   FaPause,
   FaStop,
-  FaStepForward,
-  FaStepBackward,
   FaVolumeUp,
   FaVolumeMute,
 } from "react-icons/fa"
-import "./TextToSpeechPlayer.scss" // Import the SCSS file
+import "./TextToSpeechPlayer.scss"
 
-const TextToSpeechPanel = ({ rendition, currentLocationCFI, onClose, isVisible }) => {
+const TextToSpeechPanel = ({ rendition, onClose, isVisible }) => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
-  const [currentText, setCurrentText] = useState("")
-  const [progress, setProgress] = useState(0)
+  const [selectedText, setSelectedText] = useState("")
   const [rate, setRate] = useState(1)
-  const [pitch, setPitch] = useState(1)
   const [volume, setVolume] = useState(0.8)
   const [voice, setVoice] = useState(null)
   const [availableVoices, setAvailableVoices] = useState([])
+  const [voicesLoaded, setVoicesLoaded] = useState(false)
+  const [speechError, setSpeechError] = useState("")
 
-  // Refs for continuous reading control
-  const isPlayingRef = useRef(false) // toggled when user presses Play / Stop
-  const isSpeakingPageRef = useRef(false) // true while we are speaking chunks of the current page
+  // Refs
+  const isPlayingRef = useRef(false)
   const utteranceRef = useRef(null)
   const speechSynthesisRef = useRef(null)
-  const speechTimeoutRef = useRef(null) // For debouncing page text extraction
+  const voicesLoadTimeoutRef = useRef(null)
+  const textUpdateTimeoutRef = useRef(null)
 
-  // Setup voices
+  // Text selection
+  const getSelectedText = useCallback(() => {
+    if (!rendition) return ""
+    try {
+      const contents = rendition.getContents()
+      for (const content of contents) {
+        if (content && content.window) {
+          const selection = content.window.getSelection()
+          const text = selection?.toString().trim() || ""
+          if (text) return text
+        }
+      }
+      return ""
+    } catch (err) {
+      return ""
+    }
+  }, [rendition])
+
+  // Monitor text selection
   useEffect(() => {
+    if (!isVisible || !rendition) return
+
+    const updateSelectedText = () => {
+      if (textUpdateTimeoutRef.current) {
+        clearTimeout(textUpdateTimeoutRef.current)
+      }
+      textUpdateTimeoutRef.current = setTimeout(() => {
+        const text = getSelectedText()
+        setSelectedText(text)
+        if (isPlayingRef.current && text !== selectedText) {
+          handleStop()
+        }
+      }, 100)
+    }
+
+    const setupMonitoring = () => {
+      const contents = rendition.getContents()
+      contents.forEach(content => {
+        if (content && content.document) {
+          const handler = () => setTimeout(updateSelectedText, 10)
+          content.document.addEventListener('mouseup', handler)
+          content.document.addEventListener('touchend', handler)
+          content.document.addEventListener('selectionchange', handler)
+          content.document.__ttsCleanup = handler
+        }
+      })
+    }
+
+    setupMonitoring()
+    const interval = setInterval(updateSelectedText, 500)
+
+    return () => {
+      clearInterval(interval)
+      if (textUpdateTimeoutRef.current) clearTimeout(textUpdateTimeoutRef.current)
+      const contents = rendition.getContents()
+      contents.forEach(content => {
+        if (content && content.document && content.document.__ttsCleanup) {
+          const handler = content.document.__ttsCleanup
+          content.document.removeEventListener('mouseup', handler)
+          content.document.removeEventListener('touchend', handler)
+          content.document.removeEventListener('selectionchange', handler)
+          delete content.document.__ttsCleanup
+        }
+      })
+    }
+  }, [isVisible, rendition, getSelectedText, selectedText])
+
+  // Load voices
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+
     speechSynthesisRef.current = window.speechSynthesis
+    
     const loadVoices = () => {
-      const voices = speechSynthesisRef.current.getVoices()
-      setAvailableVoices(voices)
-      if (voices.length > 0 && !voice) {
-        setVoice(voices[0])
+      try {
+        const voices = speechSynthesisRef.current.getVoices()
+        if (voices.length > 0) {
+          setAvailableVoices(voices)
+          setVoicesLoaded(true)
+          if (!voice) {
+            const preferredVoice = voices.find(v => 
+              (v.lang.includes('en-US') || v.lang.includes('en-GB')) && 
+              (v.name.includes('Google') || v.name.includes('Microsoft') || v.default)
+            ) || voices.find(v => v.default) || voices[0]
+            setVoice(preferredVoice)
+          }
+          return true
+        }
+        return false
+      } catch (error) {
+        setVoicesLoaded(true)
+        return false
       }
     }
 
-    loadVoices()
-    speechSynthesisRef.current.addEventListener("voiceschanged", loadVoices)
+    if (loadVoices()) return
+
+    const handleVoicesChanged = () => loadVoices()
+    speechSynthesisRef.current.addEventListener("voiceschanged", handleVoicesChanged)
+    voicesLoadTimeoutRef.current = setTimeout(() => loadVoices(), 800)
 
     return () => {
       if (speechSynthesisRef.current) {
         speechSynthesisRef.current.cancel()
-        speechSynthesisRef.current.removeEventListener("voiceschanged", loadVoices)
+        speechSynthesisRef.current.removeEventListener("voiceschanged", handleVoicesChanged)
       }
-      if (speechTimeoutRef.current) {
-        clearTimeout(speechTimeoutRef.current)
-      }
+      if (voicesLoadTimeoutRef.current) clearTimeout(voicesLoadTimeoutRef.current)
     }
   }, [voice])
 
-  // ---------- PAGE-WISE TEXT EXTRACTION (uses page CFIs stored in window.__bookLocations) ----------
-// Track the current visible contents
-const extractTextFromCurrentPage = useCallback(() => {
-  try {
-    const iframe = document.querySelector("#book__reader iframe");
-    if (!iframe) return "";
+  // Speech functions
+  const speakText = useCallback(() => {
+    if (!selectedText) {
+      setSpeechError("No text selected")
+      return
+    }
 
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    if (!doc) return "";
-
-    // This is the actual column container epub.js scrolls
-    const scroller = doc.querySelector(".epub-view") || doc.body;
-    const pageWidth = scroller.clientWidth;
-    const scrollLeft = scroller.scrollLeft;
-
-    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
-    const visibleNodes = [];
-
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (node.nodeValue.trim()) {
-        const rects = node.parentElement?.getClientRects?.();
-        if (
-          rects &&
-          [...rects].some(r =>
-            r.left >= scrollLeft &&
-            r.right <= scrollLeft + pageWidth &&
-            r.width > 0 &&
-            r.height > 0
-          )
-        ) {
-          visibleNodes.push(node.nodeValue);
-        }
+    try {
+      if (speechSynthesisRef.current) {
+        speechSynthesisRef.current.cancel()
       }
-    }
 
-    return visibleNodes.join(" ").replace(/\s+/g, " ").trim();
-  } catch (err) {
-    console.error("Error extracting current column text:", err);
-    return "";
-  }
-}, []);
+      const utterance = new SpeechSynthesisUtterance(selectedText)
+      utteranceRef.current = utterance
+      utterance.rate = rate
+      utterance.volume = volume
+      if (voice) utterance.voice = voice
 
-
-
-
-  // ---------- keep preview currentText in sync but DO NOT auto-cancel/restart speech ----------
-  useEffect(() => {
-    if (!isVisible || !rendition) return
-
-    if (speechTimeoutRef.current) {
-      clearTimeout(speechTimeoutRef.current)
-    }
-    speechTimeoutRef.current = setTimeout(async () => {
-      try {
-        const text = await extractTextFromCurrentPage()
-        // update preview only
-        if (text !== currentText) {
-          setCurrentText(text)
-        }
-      } catch (err) {
-        console.debug("Preview extraction failed:", err)
+      utterance.onstart = () => {
+        isPlayingRef.current = true
+        setIsPlaying(true)
+        setIsPaused(false)
+        setSpeechError("")
       }
-    }, 200)
 
-    return () => {
-      if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current)
-    }
-    // intentionally include currentText so preview updates but we avoid cancelling/respeaking
-  }, [currentLocationCFI, rendition, extractTextFromCurrentPage, isVisible, currentText])
-
-  // ---------- speakPage: speak whole page in sequential chunks, then advance to next page ----------
-  const speakPage = useCallback(async () => {
-  const text = await extractTextFromCurrentPage();
-  if (!text) {
-    console.warn("No text found on current page to read.");
-    return;
-  }
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-US";
-  utterance.rate = 1;
-  utterance.pitch = 1;
-
-  utterance.onend = () => {
-    if (isPlayingRef.current) {
-      rendition.next();
-      // Delay slightly so the new page renders before reading
-      setTimeout(() => {
-        speakPage();
-      }, 300);
-    }
-  };
-
-  window.speechSynthesis.speak(utterance);
-}, [extractTextFromCurrentPage, rendition]);
-
-
-  // ---------- when a page finishes rendering, if the user asked to keep reading, start reading ----------
-  useEffect(() => {
-    if (!rendition) return
-
-    const onRendered = () => {
-      // only start when user is in continuous read mode and we aren't already speaking the page
-      if (isPlayingRef.current && !isSpeakingPageRef.current && !speechSynthesisRef.current.speaking) {
-        // small debounce to allow the iframe/document to stabilise
-        setTimeout(() => {
-          speakPage()
-        }, 80)
+      utterance.onend = () => {
+        isPlayingRef.current = false
+        setIsPlaying(false)
+        setIsPaused(false)
       }
-    }
 
-    rendition.on("rendered", onRendered)
-    return () => {
-      try {
-        rendition.off("rendered", onRendered)
-      } catch (e) {}
-    }
-  }, [rendition, speakPage])
-
-  // ---------- Play / Pause / Stop handlers (wired to UI) ----------
-  const handlePlay = () => {
-    // start continuous reading
-    isPlayingRef.current = true
-    setIsPlaying(true)
-    setIsPaused(false)
-
-    // If paused and there is an utterance, resume, else start reading the page
-    if (isPaused && utteranceRef.current && speechSynthesisRef.current) {
-      try {
-        speechSynthesisRef.current.resume()
-      } catch (err) {}
-    } else {
-      // start the speak loop for this page (if not already speaking)
-      if (!isSpeakingPageRef.current) {
-        speakPage()
+      utterance.onerror = (event) => {
+        isPlayingRef.current = false
+        setIsPlaying(false)
+        setIsPaused(false)
+        setSpeechError(`Error: ${event.error || 'Unknown error'}`)
       }
-    }
-  }
 
-  const handlePause = () => {
-    // pause ongoing speech
-    if (speechSynthesisRef.current && (speechSynthesisRef.current.speaking || isSpeakingPageRef.current)) {
-      try {
-        speechSynthesisRef.current.pause()
-      } catch (err) {}
-      // mark playing ref false so speakPage stops queueing new chunks
+      speechSynthesisRef.current.speak(utterance)
+    } catch (error) {
+      setSpeechError(`Error: ${error.message}`)
+      isPlayingRef.current = false
+    }
+  }, [selectedText, voice, rate, volume])
+
+  // Control handlers
+  const handlePlay = useCallback(() => speakText(), [speakText])
+  const handlePause = useCallback(() => {
+    if (speechSynthesisRef.current && speechSynthesisRef.current.speaking) {
+      speechSynthesisRef.current.pause()
       isPlayingRef.current = false
       setIsPaused(true)
       setIsPlaying(false)
     }
-  }
-
-  const handleStop = () => {
-    // stop continuous reading and clear queue
+  }, [])
+  const handleResume = useCallback(() => {
+    if (speechSynthesisRef.current && speechSynthesisRef.current.paused) {
+      speechSynthesisRef.current.resume()
+      isPlayingRef.current = true
+      setIsPlaying(true)
+      setIsPaused(false)
+    }
+  }, [])
+  const handleStop = useCallback(() => {
     isPlayingRef.current = false
-    isSpeakingPageRef.current = false
     if (speechSynthesisRef.current) {
-      try {
-        speechSynthesisRef.current.cancel()
-      } catch (err) {}
+      speechSynthesisRef.current.cancel()
     }
     setIsPlaying(false)
     setIsPaused(false)
-    setProgress(0)
+    setSpeechError("")
     utteranceRef.current = null
-  }
+  }, [])
 
-  // Keep manual Next/Prev behavior (stop current speech then navigate)
-  const handleNext = () => {
-    if (rendition) {
-      handleStop()
-      rendition.next()
-    }
-  }
-
-  const handlePrevious = () => {
-    if (rendition) {
-      handleStop()
-      rendition.prev()
-    }
-  }
-
-  const handleVolumeChange = (e) => {
+  // Setting handlers
+  const handleVolumeChange = useCallback((e) => {
     const newVolume = Number.parseFloat(e.target.value)
     setVolume(newVolume)
-    if (utteranceRef.current) {
+    if (utteranceRef.current && isPlayingRef.current) {
       utteranceRef.current.volume = newVolume
     }
-  }
-
-  const handleRateChange = (e) => {
+  }, [])
+  const handleRateChange = useCallback((e) => {
     const newRate = Number.parseFloat(e.target.value)
     setRate(newRate)
-    if (utteranceRef.current) {
+    if (utteranceRef.current && isPlayingRef.current) {
       utteranceRef.current.rate = newRate
     }
-  }
-
-  const handleVoiceChange = (e) => {
-    const selectedVoice = availableVoices.find((v) => v.name === e.target.value)
+  }, [])
+  const handleVoiceChange = useCallback((e) => {
+    const selectedVoice = availableVoices.find(v => v.name === e.target.value)
     setVoice(selectedVoice)
-    // If speech is ongoing, restart the current page so voice is applied consistently
     if (isPlayingRef.current) {
-      // re-speak current page with new voice
       handleStop()
-      // small delay then start again
-      setTimeout(() => {
-        isPlayingRef.current = true
-        speakPage()
-      }, 120)
+      setTimeout(() => speakText(), 50)
     }
-  }
+  }, [availableVoices, handleStop, speakText])
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
       if (speechSynthesisRef.current) {
-        try {
-          speechSynthesisRef.current.cancel()
-        } catch (e) {}
+        speechSynthesisRef.current.cancel()
       }
-      if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current)
+      if (voicesLoadTimeoutRef.current) clearTimeout(voicesLoadTimeoutRef.current)
+      if (textUpdateTimeoutRef.current) clearTimeout(textUpdateTimeoutRef.current)
       isPlayingRef.current = false
-      isSpeakingPageRef.current = false
     }
   }, [])
 
@@ -289,49 +253,143 @@ const extractTextFromCurrentPage = useCallback(() => {
 
   return (
     <div className="tts-panel">
-      <div className="panel-header">
-        <h3>
-          <FaVolumeUp />
-          Text to Speech
-        </h3>
-        <button className="close-button" onClick={onClose}>
-          <FaTimes />
-        </button>
-      </div>
-
       <div className="tts-content">
-        <div className="tts-progress">
-          <div className="tts-progress-bar" style={{ width: `${progress}%` }} />
+        {/* Selected text preview - CLEAN LAYOUT */}
+        <div style={{ marginBottom: '15px' }}>
+          <div 
+            style={{ 
+              background: 'rgba(0, 0, 0, 0.05)',
+              borderRadius: '8px',
+              padding: '12px',
+              minHeight: '60px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            <div style={{ 
+              fontSize: '14px',
+              lineHeight: '1.4',
+              color: '#666',
+              fontStyle: selectedText ? 'normal' : 'italic'
+            }}>
+              {selectedText ? (
+                selectedText.substring(0, 150) + (selectedText.length > 150 ? "..." : "")
+              ) : (
+                "Select text in the book to begin"
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="tts-controls">
-          <button className="control-button" onClick={handlePrevious} title="Previous Page">
-            <FaStepBackward />
+        {/* Error display */}
+        {speechError && (
+          <div style={{
+            background: '#ffebee',
+            color: '#c62828',
+            padding: '10px',
+            borderRadius: '4px',
+            fontSize: '13px',
+            textAlign: 'center',
+            marginBottom: '10px'
+          }}>
+            {speechError}
+          </div>
+        )}
+
+        {/* Progress bar */}
+        <div style={{ 
+          width: '100%', 
+          height: '6px', 
+          background: 'rgba(0, 0, 0, 0.1)', 
+          borderRadius: '3px',
+          marginBottom: '15px',
+          overflow: 'hidden'
+        }}>
+          <div 
+            style={{ 
+              height: '100%', 
+              background: 'linear-gradient(45deg, #4facfe 0%, #00f2fe 100%)',
+              borderRadius: '3px',
+              width: isPlaying ? '100%' : '0%',
+              transition: 'width 0.3s ease'
+            }}
+          ></div>
+        </div>
+
+        {/* Controls - PROPERLY ALIGNED */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: '15px',
+          marginBottom: '20px'
+        }}>
+          <button
+            onClick={isPlaying ? handlePause : (isPaused ? handleResume : handlePlay)}
+            disabled={!selectedText}
+            style={{
+              width: '50px',
+              height: '50px',
+              borderRadius: '50%',
+              border: 'none',
+              background: isPlaying ? 'linear-gradient(45deg, #4facfe 0%, #00f2fe 100%)' : 'rgba(255, 255, 255, 0.8)',
+              color: isPlaying ? 'white' : '#333',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: selectedText ? 'pointer' : 'not-allowed',
+              fontSize: '18px',
+              boxShadow: '0 4px 15px rgba(100, 126, 234, 0.3)',
+              transition: 'all 0.2s ease'
+            }}
+            title={isPlaying ? "Pause" : (isPaused ? "Resume" : "Play")}
+          >
+            {isPlaying ? <FaPause /> : (isPaused ? <FaPlay /> : <FaPlay />)}
           </button>
 
           <button
-            className="control-button play-button"
-            onClick={isPlaying ? handlePause : handlePlay}
-            title={isPlaying ? "Pause" : "Play"}
+            onClick={handleStop}
+            disabled={!isPlaying && !isPaused}
+            style={{
+              width: '50px',
+              height: '50px',
+              borderRadius: '50%',
+              border: 'none',
+              background: 'rgba(255, 255, 255, 0.8)',
+              color: '#333',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: (isPlaying || isPaused) ? 'pointer' : 'not-allowed',
+              fontSize: '18px',
+              boxShadow: '0 4px 15px rgba(100, 126, 234, 0.3)',
+              transition: 'all 0.2s ease'
+            }}
+            title="Stop"
           >
-            {isPlaying ? <FaPause /> : <FaPlay />}
-          </button>
-
-          <button className="control-button" onClick={handleStop} title="Stop">
             <FaStop />
-          </button>
-
-          <button className="control-button" onClick={handleNext} title="Next Page">
-            <FaStepForward />
           </button>
         </div>
 
-        <div className="tts-settings">
-          <div className="setting-group">
-            <label className="setting-label">
-              {volume > 0 ? <FaVolumeUp /> : <FaVolumeMute />}
-              Volume
-            </label>
+        {/* Settings - ORGANIZED LAYOUT */}
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '15px',
+          marginBottom: '15px'
+        }}>
+          {/* Volume */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '5px', 
+              minWidth: '80px',
+              fontSize: '14px',
+              color: '#333'
+            }}>
+              {volume > 0 ? <FaVolumeUp size={14} /> : <FaVolumeMute size={14} />}
+              <span>Volume</span>
+            </div>
             <input
               type="range"
               min="0"
@@ -339,13 +397,37 @@ const extractTextFromCurrentPage = useCallback(() => {
               step="0.1"
               value={volume}
               onChange={handleVolumeChange}
-              className="setting-slider"
+              style={{
+                flex: 1,
+                height: '6px',
+                borderRadius: '3px',
+                background: 'rgba(0, 0, 0, 0.1)',
+                outline: 'none',
+                appearance: 'none'
+              }}
             />
-            <span className="setting-value">{Math.round(volume * 100)}%</span>
+            <div style={{ 
+              minWidth: '40px', 
+              textAlign: 'right', 
+              fontSize: '14px',
+              color: '#333'
+            }}>
+              {Math.round(volume * 100)}%
+            </div>
           </div>
 
-          <div className="setting-group">
-            <label className="setting-label">Speed</label>
+          {/* Speed */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '5px', 
+              minWidth: '80px',
+              fontSize: '14px',
+              color: '#333'
+            }}>
+              <span>Speed</span>
+            </div>
             <input
               type="range"
               min="0.5"
@@ -353,15 +435,51 @@ const extractTextFromCurrentPage = useCallback(() => {
               step="0.1"
               value={rate}
               onChange={handleRateChange}
-              className="setting-slider"
+              style={{
+                flex: 1,
+                height: '6px',
+                borderRadius: '3px',
+                background: 'rgba(0, 0, 0, 0.1)',
+                outline: 'none',
+                appearance: 'none'
+              }}
             />
-            <span className="setting-value">{rate}x</span>
+            <div style={{ 
+              minWidth: '40px', 
+              textAlign: 'right', 
+              fontSize: '14px',
+              color: '#333'
+            }}>
+              {rate}x
+            </div>
           </div>
 
-          <div className="setting-group">
-            <label className="setting-label">Voice</label>
-            <select value={voice?.name || ""} onChange={handleVoiceChange} className="voice-select">
-              {availableVoices.length === 0 && <option>Loading voices...</option>}
+          {/* Voice */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ 
+              minWidth: '80px',
+              fontSize: '14px',
+              color: '#333'
+            }}>
+              Voice
+            </div>
+            <select 
+              value={voice?.name || ""} 
+              onChange={handleVoiceChange}
+              disabled={!voicesLoaded}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                border: '1px solid rgba(0, 0, 0, 0.2)',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.8)',
+                color: '#333',
+                fontSize: '14px',
+                outline: 'none'
+              }}
+            >
+              {!voicesLoaded && <option>Loading voices...</option>}
+              {availableVoices.length === 0 && voicesLoaded && <option>No voices available</option>}
               {availableVoices.map((v) => (
                 <option key={v.name} value={v.name}>
                   {v.name} ({v.lang})
@@ -371,8 +489,22 @@ const extractTextFromCurrentPage = useCallback(() => {
           </div>
         </div>
 
-        <div className="text-preview">
-          <div className="text-preview-content">{currentText.substring(0, 200)}{currentText.length > 200 && "..."}</div>
+        {/* Close button */}
+        <div style={{ textAlign: 'center' }}>
+          <button 
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: '1px solid #ccc',
+              padding: '8px 20px',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              color: '#666',
+              fontSize: '14px'
+            }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

@@ -24,10 +24,24 @@ const AnnotationContextMenu = ({ position, onAddAnnotation, onClose, visible = t
     []
   )
 
+  // Handle escape key - moved outside conditional render
+  useMemo(() => {
+    if (typeof document === "undefined" || !visible || !position) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [visible, onClose, position])
+
   // SSR guard + basic visibility guard
   if (typeof document === "undefined" || !visible || !position) return null
 
-  // Clamp anchor so translate(-50%, -100%) won’t yeet it off-screen.
+  // Clamp anchor so translate(-50%, -100%) won't yeet it off-screen.
   const clampToViewport = (x, y, w = 360, h = 120, pad = 8) => {
     const vw = window.innerWidth
     const vh = window.innerHeight
@@ -45,38 +59,74 @@ const AnnotationContextMenu = ({ position, onAddAnnotation, onClose, visible = t
     Math.round(position.y ?? 0)
   )
 
+  // Handle clicks outside the menu
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
+
   return createPortal(
     <div
-      className="annotation-context-menu"
+      className="annotation-context-menu-backdrop"
       style={{
-        position: "fixed",            // critical: avoid clipping/stacking issues
-        left: x,
-        top: y,
-        transform: "translate(-50%, -100%)", // above selection
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        zIndex: 9998,
       }}
-      data-test="annotation-context-menu"
-      role="dialog"
-      aria-label="Annotation menu"
+      onClick={handleBackdropClick}
     >
-      <div className="context-menu-header">
-        <FaHighlighter className="context-menu-icon" />
-        <span>Highlight</span>
-        <button className="close-button" onClick={onClose} aria-label="Close">
-          <FaTimes />
-        </button>
-      </div>
+      <div
+        className="annotation-context-menu"
+        style={{
+          position: "fixed",
+          left: x,
+          top: y,
+          transform: "translate(-50%, -100%)",
+          zIndex: 9999,
+          pointerEvents: "auto",
+        }}
+        data-test="annotation-context-menu"
+        role="dialog"
+        aria-label="Annotation menu"
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside menu
+      >
+        <div className="context-menu-header">
+          <FaHighlighter className="context-menu-icon" />
+          <span>Highlight</span>
+          <button 
+            className="close-button" 
+            onClick={onClose} 
+            aria-label="Close"
+            type="button"
+          >
+            <FaTimes />
+          </button>
+        </div>
 
-      <div className="color-options">
-        {colors.map((color) => (
-          <button
-            key={color.value}
-            className="color-option"
-            style={{ backgroundColor: color.value }}
-            onClick={() => onAddAnnotation(color.value)}
-            title={color.name}
-            aria-label={`Highlight ${color.name}`}
-          />
-        ))}
+        <div className="color-options">
+          {colors.map((color) => (
+            <button
+              key={color.value}
+              className="color-option"
+              style={{ 
+                backgroundColor: color.value,
+                border: '2px solid transparent',
+                transition: 'all 0.2s ease',
+              }}
+              onClick={() => {
+                onAddAnnotation(color.value)
+                onClose() // Auto-close after selection
+              }}
+              title={color.name}
+              aria-label={`Highlight ${color.name}`}
+              type="button"
+            />
+          ))}
+        </div>
       </div>
     </div>,
     document.body

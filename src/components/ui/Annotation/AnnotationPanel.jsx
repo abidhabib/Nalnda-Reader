@@ -27,14 +27,69 @@ const AnnotationPanel = ({preview, rendition, bookMeta, addAnnotationRef, onRemo
 	}, [Loading, dispatch])
 
 	useEffect(() => {
-		if(isUsable(preview) && !preview){
-			if(isUsable(UserState)) setWalletAddress(UserState.user.wallet)
-			else navigate(-1)
-		}
+		if(isUsable(UserState) && UserState.user) setWalletAddress(UserState.user.wallet)
+		else if (!preview) navigate(-1)
 	}, [UserState, navigate, preview])
 
+	// Helper function to clear all annotations
+	const clearAllAnnotations = useCallback(() => {
+		if (rendition && rendition.annotations) {
+			// Remove all existing highlights one by one
+			// We need to keep track of what we've added
+			try {
+				// If removeAll exists, use it
+				if (typeof rendition.annotations.removeAll === 'function') {
+					rendition.annotations.removeAll()
+				} else {
+					// Fallback: manually remove each annotation
+					// This requires keeping track of added annotations
+					console.log("removeAll not available, annotations will be added incrementally")
+				}
+			} catch (err) {
+				console.warn("Could not clear annotations:", err)
+			}
+		}
+	}, [rendition])
+
+	// Load annotations
 	useEffect(() => {
-		if(isUsable(preview) && !preview && isUsable(bookMeta) && isUsable(WalletAddress) && isUsable(rendition)){
+		if(isUsable(bookMeta) && isUsable(WalletAddress) && isUsable(rendition)){
+			// Preview mode - load from localStorage
+			if (preview) {
+				console.log("Preview mode: loading annotations from localStorage")
+				try {
+					const localKey = `preview_annotations_${bookMeta.book_address}`
+					const localAnnotations = localStorage.getItem(localKey)
+					if (localAnnotations) {
+						const parsed = JSON.parse(localAnnotations)
+						setAnnotations(parsed)
+						// Apply highlights
+						clearAllAnnotations()
+						parsed.forEach((item)=>{
+							if (rendition.annotations && typeof rendition.annotations.add === 'function') {
+								rendition.annotations.add(
+									"highlight",
+									item.cfiRange,
+									{},
+									()=>{},
+									"",
+									{"fill": item.color, "fill-opacity": "0.35", "mix-blend-mode": "multiply"}
+								)
+							}
+						})
+					} else {
+						setAnnotations([])
+						clearAllAnnotations()
+					}
+				} catch (e) {
+					console.error("Error loading preview annotations:", e)
+					setAnnotations([])
+					clearAllAnnotations()
+				}
+				return
+			}
+			
+			// Real mode - load from backend
 			setLoading(true)
 			axios({
 				url: `${BASE_URL}/api/reader/annotations`,
@@ -45,28 +100,45 @@ const AnnotationPanel = ({preview, rendition, bookMeta, addAnnotationRef, onRemo
 				}
 			}).then(res => {
 				if(res.status === 200) {
-					let parsedAnnotations = JSON.parse(res.data.annotations)||[]
+					let parsedAnnotations = []
+					try {
+						parsedAnnotations = JSON.parse(res.data.annotations) || []
+					} catch (e) {
+						console.error("Failed to parse annotations:", e)
+						parsedAnnotations = []
+					}
 					setAnnotations(parsedAnnotations)
+					
+					// Clear existing annotations first
+					clearAllAnnotations()
+					
+					// Add all annotations
 					parsedAnnotations.forEach((item)=>{
-						rendition.annotations.add(
-							"highlight",
-							item.cfiRange,
-							{},
-							()=>{},
-							"",
-							{"fill": item.color, "fill-opacity": "0.35", "mix-blend-mode": "multiply"}
-						)
+						if (rendition.annotations && typeof rendition.annotations.add === 'function') {
+							rendition.annotations.add(
+								"highlight",
+								item.cfiRange,
+								{},
+								()=>{},
+								"",
+								{"fill": item.color, "fill-opacity": "0.35", "mix-blend-mode": "multiply"}
+							)
+						}
 					})
 				}
 			}).catch(err => {
+				console.error("Error fetching annotations:", err)
+				setAnnotations([])
+				clearAllAnnotations()
 			}).finally(() => setLoading(false))
 		}
-	}, [bookMeta, WalletAddress, dispatch, rendition, preview])
+	}, [bookMeta, WalletAddress, dispatch, rendition, preview, clearAllAnnotations])
 
 	const renderAnnotationItems = () => {
 		let domItems = []
 		if(!isUsable(rendition)) return ""
 		if(!isUsable(bookMeta)) return ""
+		
 		Annotations.forEach((item,i)=>{
 			domItems.push(
 				<div key={i} className="panel__annotation__item" onClick={()=>gotoPage(item.cfiRange)}>
@@ -86,46 +158,35 @@ const AnnotationPanel = ({preview, rendition, bookMeta, addAnnotationRef, onRemo
 
 	const removeAnnotation = (itemIndex,item) => {
 		GaTracker('event_annotationpanel_remove')
-		if(isUsable(preview) && !preview && isUsable(bookMeta) && isUsable(WalletAddress) && isUsable(rendition)){
+		if(isUsable(bookMeta) && isUsable(WalletAddress) && isUsable(rendition)){
 			if(!isUsable(rendition)) return
 			if(!isUsable(bookMeta)) return
-			setLoading(true)
+			
 			let newAnnotations = Annotations.filter((item,i) => i !== itemIndex )
-			axios({
-				url: `${BASE_URL}/api/reader/annotations`,
-				method: 'POST',
-				data: {
-					bookAddress: bookMeta.book_address,
-					ownerAddress: WalletAddress,
-					annotations : JSON.stringify(newAnnotations),
+			
+			// Remove highlight immediately
+			if (rendition.annotations && typeof rendition.annotations.remove === 'function') {
+				try {
+					rendition.annotations.remove(item.cfiRange, "highlight")
+				} catch (err) {
+					console.warn("Could not remove highlight:", err)
 				}
-			}).then(res => {
-				if(res.status === 200) {
+			}
+			
+			// Handle based on mode
+			if (preview) {
+				// Preview mode - save to localStorage
+				try {
+					const localKey = `preview_annotations_${bookMeta.book_address}`
+					localStorage.setItem(localKey, JSON.stringify(newAnnotations))
 					setAnnotations(newAnnotations)
-					rendition.annotations.remove(item.cfiRange,"highlight")
 					onRemove()
-				} 
-			}).catch(err => {
-			}).finally(() => setLoading(false))
-		}
-	}
-
-	const gotoPage = (cfi) => {
-		GaTracker('event_annotationpanel_goto_page')
-		if(!isUsable(rendition)) return
-		rendition.display(cfi)
-		rendition.display(cfi)
-		hideModal()
-	}
-
-	const addAnnotaion = useCallback(
-		(annotation) => {
-			GaTracker('event_annotationpanel_annotate')
-			if(isUsable(preview) && !preview && isUsable(bookMeta) && isUsable(WalletAddress) && isUsable(rendition)){
-				if(!isUsable(rendition)) return
-				if(!isUsable(bookMeta)) return
+				} catch (e) {
+					console.error("Error saving preview annotations:", e)
+				}
+			} else {
+				// Real mode - save to backend
 				setLoading(true)
-				let newAnnotations = [...Annotations,annotation]
 				axios({
 					url: `${BASE_URL}/api/reader/annotations`,
 					method: 'POST',
@@ -137,6 +198,48 @@ const AnnotationPanel = ({preview, rendition, bookMeta, addAnnotationRef, onRemo
 				}).then(res => {
 					if(res.status === 200) {
 						setAnnotations(newAnnotations)
+						onRemove()
+					} 
+				}).catch(err => {
+					console.error("Error removing annotation:", err)
+					// Revert on error
+					setAnnotations(prev => [...prev, item])
+					if (rendition.annotations && typeof rendition.annotations.add === 'function') {
+						rendition.annotations.add(
+							"highlight",
+							item.cfiRange,
+							{},
+							()=>{},
+							"",
+							{"fill": item.color, "fill-opacity": "0.35", "mix-blend-mode": "multiply"}
+						)
+					}
+				}).finally(() => setLoading(false))
+			}
+		}
+	}
+
+	const gotoPage = (cfi) => {
+		GaTracker('event_annotationpanel_goto_page')
+		if(!isUsable(rendition)) return
+		rendition.display(cfi)
+		hideModal()
+	}
+
+	const addAnnotation = useCallback(
+		(annotation) => {
+			GaTracker('event_annotationpanel_annotate')
+			if(isUsable(bookMeta) && isUsable(WalletAddress) && isUsable(rendition)){
+				if(!isUsable(rendition)) return
+				if(!isUsable(bookMeta)) return
+				
+				// Add to local state immediately
+				let newAnnotations = [...Annotations, annotation]
+				setAnnotations(newAnnotations)
+				
+				// Add highlight immediately
+				if (rendition.annotations && typeof rendition.annotations.add === 'function') {
+					try {
 						rendition.annotations.add(
 							"highlight",
 							annotation.cfiRange,
@@ -145,17 +248,64 @@ const AnnotationPanel = ({preview, rendition, bookMeta, addAnnotationRef, onRemo
 							"",
 							{"fill": annotation.color, "fill-opacity": "0.35", "mix-blend-mode": "multiply"}
 						)
-					} 
-				}).catch(err => {
-				}).finally(() => setLoading(false))
+					} catch (err) {
+						console.warn("Could not add highlight:", err)
+					}
+				}
+				
+				// Handle based on mode
+				if (preview) {
+					// Preview mode - save to localStorage
+					try {
+						const localKey = `preview_annotations_${bookMeta.book_address}`
+						localStorage.setItem(localKey, JSON.stringify(newAnnotations))
+					} catch (e) {
+						console.error("Error saving preview annotations:", e)
+					}
+				} else {
+					// Real mode - save to backend
+					setLoading(true)
+					axios({
+						url: `${BASE_URL}/api/reader/annotations`,
+						method: 'POST',
+						data: {
+							bookAddress: bookMeta.book_address,
+							ownerAddress: WalletAddress,
+							annotations : JSON.stringify(newAnnotations),
+						}
+					}).then(res => {
+						if(res.status === 200) {
+							// Success - already updated state above
+							console.log("Annotation saved to backend successfully")
+						} 
+					}).catch(err => {
+						console.error("Error adding annotation:", err)
+						// Revert on error
+						setAnnotations(prev => prev.filter(ann => ann.cfiRange !== annotation.cfiRange))
+						if (rendition.annotations && typeof rendition.annotations.remove === 'function') {
+							try {
+								rendition.annotations.remove(annotation.cfiRange, "highlight")
+							} catch (err) {
+								console.warn("Could not remove highlight on revert:", err)
+							}
+						}
+					}).finally(() => setLoading(false))
+				}
 			}
 		},
-		[Annotations, WalletAddress, bookMeta, dispatch, rendition, preview],
+		[Annotations, WalletAddress, bookMeta, rendition, preview],
 	)
 
 	useEffect(()=>{
-		addAnnotationRef.current = addAnnotaion
-	},[addAnnotationRef,addAnnotaion])
+		if (addAnnotationRef) {
+			addAnnotationRef.current = addAnnotation
+		}
+		return () => {
+			if (addAnnotationRef && addAnnotationRef.current) {
+				addAnnotationRef.current = null
+			}
+		}
+	},[addAnnotationRef, addAnnotation])
 
 	return <div className="panel panel__annotation"> {renderAnnotationItems()} </div> ;
 }

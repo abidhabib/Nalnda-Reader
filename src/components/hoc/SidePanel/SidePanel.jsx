@@ -9,18 +9,30 @@ const SidePanel = ({ show = false, setShow=()=>{}, position = "right", title = "
         return classes.join(" ");
     };
 
+    // Close panel when clicking outside (optional enhancement)
+    const handleBackdropClick = (e) => {
+        if (e.target === e.currentTarget) {
+            setShow(false);
+        }
+    };
+
     return (
-        <div className={getClasses()}>
-            <div className="sidepanel__header">
-                <div className="sidepanel__header__close-btn">
-                    <Button type="icon" onClick={()=>setShow(false)}>
-                        <CloseIcon width={24} height={24} stroke="currentColor"/>
-                    </Button>
+        <>
+            {show && (
+                <div className="sidepanel__backdrop" onClick={handleBackdropClick}></div>
+            )}
+            <div className={getClasses()}>
+                <div className="sidepanel__header">
+                    <div className="sidepanel__header__close-btn">
+                        <Button type="icon" onClick={()=>setShow(false)} aria-label="Close panel">
+                            <CloseIcon width={24} height={24} stroke="currentColor"/>
+                        </Button>
+                    </div>
+                    <div className="sidepanel__header__title typo__head--6">{title}</div>
                 </div>
-                <div className="sidepanel__header__title typo__head--6">{title}</div>
+                <div className="sidepanel__body">{children}</div>
             </div>
-            <div className="sidepanel__body">{children}</div>
-        </div>
+        </>
     );
 };
 

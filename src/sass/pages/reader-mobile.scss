@@ -1,0 +1,69 @@
+// Bookmark button active state
+.reader__header__right__button--active {
+  color: #0dbff1 !important;
+  fill: #ff6b35 !important;
+  transform: scale(1.1);
+  transition: all 0.2s ease;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.reader__header__right__button--bookmarked {
+  position: relative;
+  animation: bookmarkPulse 2s infinite;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  color: #ff6b35 !important;
+  fill: #ff6b35 !important;
+  
+}
+#book__reader {
+  width: 100%;
+  height: 100vh;
+  max-width: 1200px; 
+  margin: 0 auto;
+  overflow: hidden;
+
+  iframe {
+    width: 100% !important;
+    height: 100% !important;
+  }
+}
+@keyframes bookmarkPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+// Bookmark indicator dot
+.bookmark-indicator-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  background-color: #ff6b35;
+  border-radius: 50%;
+  border: 1px solid white;
+  z-index: 2;
+}
+
+// Bookmark visual indicator in reader
+.reader__container__bookmark--show {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 12px;
+  height: 12px;
+  background-color: #ff6b35;
+  border-radius: 50%;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  animation: bookmarkBlink 1s infinite;
+}
+
+@keyframes bookmarkBlink {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}

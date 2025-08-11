@@ -325,3 +325,47 @@
     font-size: 18px;
   }
 }
+
+
+/* Ensure proper panel display */
+.tts-panel {
+  display: block !important;
+  max-height: 40vh !important;
+}
+
+/* Clean up content spacing */
+.tts-content {
+  padding: 20px !important;
+}
+
+/* Dark theme fixes */
+[data-theme="dark"] .tts-panel {
+  background: rgba(26, 26, 26, 0.95) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] input[type="range"] {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] select {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+[data-theme="dark"] button {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .tts-content {
+    padding: 15px !important;
+  }
+  
+  .tts-panel {
+    max-height: 50vh !important;
+  }
+}
