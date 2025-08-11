@@ -273,123 +273,92 @@ const navigatePage = useCallback((direction) => {
 
   return transitionPromise;
 }, [Rendition]);
-// Add this useEffect for smooth horizontal swipe handling
 useEffect(() => {
   if (!Rendition) return;
 
-  let startX = 0;
+  let touchStartX = 0;
+  let touchStartY = 0;
   let isSwiping = false;
-  let currentIframe = null;
 
   const handleTouchStart = (e) => {
-    // Don't interfere with panels or text selection
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
-      return;
-    }
+    if (e.touches.length !== 1) return;
     
-    if (e.touches.length === 1) {
-      startX = e.touches[0].clientX;
-      isSwiping = false;
-      
-      // Get current iframe for smooth animation
-      const iframes = document.querySelectorAll('#book__reader iframe');
-      if (iframes.length > 0) {
-        currentIframe = iframes[iframes.length - 1]; // Get the active/main iframe
-      }
-    }
+    // Don't interfere with panels
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
+    
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    isSwiping = false;
   };
 
   const handleTouchMove = (e) => {
-    if (!startX || !currentIframe) return;
-    
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
-      return;
-    }
+    if (!touchStartX || !touchStartY) return;
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
 
-    const currentX = e.touches[0].clientX;
-    const deltaX = currentX - startX;
+    const touchX = e.touches[0].clientX;
+    const touchY = e.touches[0].clientY;
+    const deltaX = touchX - touchStartX;
+    const deltaY = touchY - touchStartY;
 
-    // Only handle horizontal movement (ignore vertical)
-    if (Math.abs(deltaX) > 5) {
+    // Only consider it a swipe if horizontal movement is greater than vertical
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
       isSwiping = true;
-      
-      // Apply smooth visual feedback - ONLY horizontal transform
-      currentIframe.style.transition = 'none';
-      currentIframe.style.transform = `translate3d(${deltaX}px, 0, 0)`;
-      currentIframe.style.willChange = 'transform';
-      
-      // Prevent default ONLY for horizontal swipes
-      e.preventDefault();
+      e.preventDefault(); // Prevent scrolling during swipe
     }
   };
 
   const handleTouchEnd = (e) => {
-    if (!isSwiping || !startX || !currentIframe) {
-      resetSwipe();
+    if (!isSwiping || !touchStartX) {
+      touchStartX = 0;
+      touchStartY = 0;
+      isSwiping = false;
       return;
     }
 
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) {
-      resetSwipe();
+    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
+      touchStartX = 0;
+      touchStartY = 0;
+      isSwiping = false;
       return;
     }
 
-    const endX = e.changedTouches[0].clientX;
-    const deltaX = endX - startX;
+    const touchX = e.changedTouches[0].clientX;
+    const deltaX = touchX - touchStartX;
     const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
 
-    // Smooth completion animation
-    currentIframe.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
-    
     if (Math.abs(deltaX) > swipeThreshold) {
-      // Complete the page turn
-      const targetX = deltaX < 0 ? -window.innerWidth : window.innerWidth;
-      currentIframe.style.transform = `translate3d(${targetX}px, 0, 0)`;
-      
-      // Navigate after animation
-      setTimeout(() => {
-        if (deltaX < 0) {
-          Rendition.next();
-        } else {
-          Rendition.prev();
-        }
-        resetSwipe();
-      }, 300);
-    } else {
-      // Cancelled swipe - return to original position
-      currentIframe.style.transform = 'translate3d(0, 0, 0)';
-      setTimeout(() => {
-        resetSwipe();
-      }, 300);
+      if (deltaX > 0) {
+        // Swipe right - go to previous page
+        navigatePage("prev");
+      } else {
+        // Swipe left - go to next page
+        navigatePage("next");
+      }
     }
-  };
 
-  const resetSwipe = () => {
-    startX = 0;
+    touchStartX = 0;
+    touchStartY = 0;
     isSwiping = false;
-    if (currentIframe) {
-      currentIframe.style.willChange = 'auto';
-    }
-    currentIframe = null;
   };
 
-  // Attach event listeners
-  const bookElement = document.getElementById('book__reader');
-  if (bookElement) {
-    bookElement.addEventListener('touchstart', handleTouchStart, { passive: false });
-    bookElement.addEventListener('touchmove', handleTouchMove, { passive: false });
-    bookElement.addEventListener('touchend', handleTouchEnd, { passive: true });
+  // Attach touch events to the book reader container
+  const bookReader = document.getElementById('book__reader');
+  if (bookReader) {
+    bookReader.addEventListener('touchstart', handleTouchStart, { passive: false });
+    bookReader.addEventListener('touchmove', handleTouchMove, { passive: false });
+    bookReader.addEventListener('touchend', handleTouchEnd, { passive: true });
   }
 
-  // Cleanup
   return () => {
-    if (bookElement) {
-      bookElement.removeEventListener('touchstart', handleTouchStart);
-      bookElement.removeEventListener('touchmove', handleTouchMove);
-      bookElement.removeEventListener('touchend', handleTouchEnd);
+    if (bookReader) {
+      bookReader.removeEventListener('touchstart', handleTouchStart);
+      bookReader.removeEventListener('touchmove', handleTouchMove);
+      bookReader.removeEventListener('touchend', handleTouchEnd);
     }
   };
-}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, ShowContextMenu]);
+}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
+
+
   const openFullscreen = useCallback(() => {
     const elem = document.documentElement
     if (elem) {
@@ -673,81 +642,98 @@ useEffect(() => {
 
           renditionInstance = rendition
           setRendition(rendition)
+const attachSwipeToDoc = (content) => {
+  if (!content?.document || attachedDocs.has(content.document)) return
+  attachedDocs.add(content.document)
 
-          const attachSwipeToDoc = (content) => {
-            if (!content?.document || attachedDocs.has(content.document)) return
-            attachedDocs.add(content.document)
+  const iframe = content.document.defaultView?.frameElement?.parentElement
+  if (!iframe) return
 
-            const iframe = content.document.defaultView?.frameElement?.parentElement
-            if (!iframe) return
+  let startX = 0, startY = 0, deltaX = 0
+  let lastX = 0, lastT = 0, velocity = 0
+  let isDragging = false, rafId = null
 
-            let startX = 0,
-              startY = 0,
-              deltaX = 0,
-              isDragging = false
-            const threshold = Math.min(window.innerWidth * 0.18, 90)
+  const threshold = Math.min(window.innerWidth * 0.18, 90)
 
-            const setTransform = (x) => {
-              iframe.style.transform = `translate3d(${x}px, 0, 0)`
-            }
+  const setTransform = (x) => {
+    if (rafId) cancelAnimationFrame(rafId)
+    rafId = requestAnimationFrame(() => {
+      iframe.style.transform = `translate3d(${x}px, 0, 0)`
+    })
+  }
 
-            const resetTransform = (animate = true) => {
-              iframe.style.transition = animate ? "transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)" : "none"
-              iframe.style.transform = "translate3d(0, 0, 0)"
-            }
+  const resetTransform = (animate = true) => {
+    iframe.style.transition = animate ? "transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1)" : "none"
+    iframe.style.transform = "translate3d(0, 0, 0)"
+  }
 
-            const touchStart = (e) => {
-              if (e.touches && e.touches.length !== 1) return
-              startX = e.touches[0].clientX
-              startY = e.touches[0].clientY
-              deltaX = 0
-              isDragging = false
-              iframe.style.transition = "none"
-            }
+  const touchStart = (e) => {
+    if (e.touches.length !== 1) return
+    startX = lastX = e.touches[0].clientX
+    startY = e.touches[0].clientY
+    deltaX = 0
+    velocity = 0
+    isDragging = false
+    lastT = e.timeStamp
+    iframe.style.transition = "none"
+  }
 
-            const touchMove = (e) => {
-              if (e.touches && e.touches.length !== 1) return
-              const dx = e.touches[0].clientX - startX
-              const dy = e.touches[0].clientY - startY
+  const touchMove = (e) => {
+    if (e.touches.length !== 1) return
+    const x = e.touches[0].clientX
+    const y = e.touches[0].clientY
+    const dx = x - startX
+    const dy = y - startY
 
-              if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
-                isDragging = true
-              }
-              if (isDragging) {
-                e.preventDefault()
-                deltaX = dx
-                setTransform(dx)
-              }
-            }
+    if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
+      isDragging = true
+      setIsSwiping(true)
+    }
+    if (!isDragging) return
 
-            const touchEnd = () => {
-              if (!isDragging) {
-                resetTransform()
-                return
-              }
-              const distance = Math.abs(deltaX)
-              const baseDuration = 250
-              const duration = Math.min(400, Math.max(180, (distance / window.innerWidth) * baseDuration + 150))
-              const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)"
+    e.preventDefault()
+    deltaX = dx
 
-              if (distance > threshold) {
-                iframe.style.transition = `transform ${duration}ms ${easing}`
-                iframe.style.transform = `translate3d(${deltaX < 0 ? -window.innerWidth : window.innerWidth}px, 0, 0)`
-                setTimeout(() => {
-                  if (renditionInstance) {
-                    deltaX < 0 ? renditionInstance.next() : renditionInstance.prev()
-                  }
-                  resetTransform(false)
-                }, duration)
-              } else {
-                resetTransform()
-              }
-            }
+    const dt = Math.max(1, e.timeStamp - lastT)
+    velocity = (x - lastX) / dt // px per ms
+    lastX = x
+    lastT = e.timeStamp
 
-            content.document.addEventListener("touchstart", touchStart, { passive: true })
-            content.document.addEventListener("touchmove", touchMove, { passive: false })
-            content.document.addEventListener("touchend", touchEnd, { passive: true })
-          }
+    setTransform(deltaX)
+  }
+
+  const touchEnd = () => {
+    if (!isDragging) {
+      resetTransform()
+      return
+    }
+    const distance = Math.abs(deltaX)
+    const speed = Math.abs(velocity)
+    const passed = distance > threshold || speed > 0.35
+
+    const base = 260
+    const duration = Math.min(420, Math.max(200, base + (distance / window.innerWidth) * 180))
+    const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)"
+
+    if (passed) {
+      iframe.style.transition = `transform ${duration}ms ${easing}`
+      iframe.style.transform = `translate3d(${deltaX < 0 ? -window.innerWidth : window.innerWidth}px, 0, 0)`
+      setTimeout(() => {
+        deltaX < 0 ? renditionInstance.next() : renditionInstance.prev()
+        resetTransform(false)
+      }, duration)
+    } else {
+      resetTransform()
+    }
+    isDragging = false
+    setIsSwiping(false)
+  }
+
+  content.document.addEventListener("touchstart", touchStart, { passive: true })
+  content.document.addEventListener("touchmove",  touchMove,  { passive: false })
+  content.document.addEventListener("touchend",   touchEnd,   { passive: true })
+}
+
 
           rendition.getContents().forEach(attachSwipeToDoc)
           rendition.on("rendered", (_section, content) => {
@@ -1147,7 +1133,7 @@ useEffect(() => {
     >
 <div className={`reader__header 
   ${ShowUI ? "reader__header--show" : ""} 
-  ${IsMobile && ShowCustomizerPanel ? "reader__header--hidden" : ""}`}
+  ${(ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) ? "reader__header--hidden" : ""}`}
 >
   <div className="reader__header__left">
     <div className="reader__header__left__timer">
@@ -1326,7 +1312,7 @@ useEffect(() => {
 </SidePanel>
       </div>
 
-{ShowUI && (
+{ShowUI && !(ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) && (
   <nav className="reader__nav reader__nav--show">
     <div className="reader__nav__value">
       <div className="reader__nav__value__chapter-title typo__gray--n600 typo__transform--capital">

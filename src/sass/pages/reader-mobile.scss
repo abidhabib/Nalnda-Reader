@@ -7,20 +7,15 @@
   background-color: transparent !important;
   box-shadow: none !important;
 }
-#book__reader {
-  iframe {
-    transform: translate3d(0, 0, 0);
-    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    will-change: transform;
-  }
-}
-.reader__header__right{
+
+.reader__header__right {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0rem;
   padding: 0% 0.5rem;
 }
+
 .reader__header__right__button--bookmarked {
   position: relative;
   animation: bookmarkPulse 2s infinite;
@@ -28,7 +23,65 @@
   box-shadow: none !important;
   color: #ff6b35 !important;
   fill: #ff6b35 !important;
-  transition: all 0.2s ease; // Add smooth transition
+  transition: all 0.2s ease;
+}
+
+// HIDE HEADER WHEN PANELS ARE OPEN
+.reader__header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+  
+  &--show {
+    transform: translateY(0);
+  }
+  
+  &--hidden {
+    display: none !important;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+// HIDE NAVIGATION BAR WHEN PANELS ARE OPEN
+.reader__nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 0.5rem 1rem;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+  z-index: 100;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  
+  &--show {
+    transform: translateY(0);
+  }
+  
+  &--hidden {
+    display: none !important;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 0.25rem 0.75rem;
+  }
 }
 
 #book__reader {
@@ -37,8 +90,7 @@
   max-width: 1200px; 
   margin: 0 auto;
   overflow: hidden;
-  // Add smooth scrolling optimizations
-  transform: translateZ(0); // Hardware acceleration
+  transform: translateZ(0);
   will-change: transform;
   backface-visibility: hidden;
   perspective: 1000px;
@@ -48,7 +100,6 @@
   iframe {
     width: 100% !important;
     height: 100% !important;
-    // Smooth iframe transitions
     transition: opacity 0.2s ease-out;
     transform: translateZ(0);
   }
@@ -78,7 +129,6 @@
   border-radius: 50%;
   border: 1px solid white;
   z-index: 2;
-  // Add smooth appearance
   opacity: 0;
   animation: bookmarkDotAppear 0.3s ease-out forwards;
 }
@@ -105,8 +155,6 @@
   border-radius: 50%;
   z-index: 1000;
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-  animation: bookmarkBlink 1s infinite;
-  // Add smooth entrance
   opacity: 0;
   transform: scale(0);
   animation: bookmarkAppear 0.3s ease-out forwards, bookmarkBlink 1s 0.3s infinite;
@@ -132,7 +180,7 @@
 // Smooth scrolling for reader container
 .reader__container {
   overflow: hidden;
-  -webkit-overflow-scrolling: touch; // Momentum scrolling on iOS
+  -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   transform: translateZ(0);
   will-change: transform;
@@ -161,7 +209,6 @@
   will-change: transform;
   transform: translateZ(0);
   
-  // Page turn effect
   &.page-turning {
     transition: transform 0.3s ease-out;
   }
@@ -190,10 +237,23 @@
       }
     }
   }
-  
 }
+
 @media (max-width: 768px) {
   .button--icon {
     padding: 6px !important;
+  }
+}
+
+// Dark theme support
+[data-theme="dark"] {
+  .reader__header {
+    background: rgba(0, 0, 0, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .reader__nav {
+    background: rgba(0, 0, 0, 0.95);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 }
