@@ -33,6 +33,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaVolumeUp,
+  FaVolumeMute,
 } from "react-icons/fa"
 
 import GaTracker from "../trackers/ga-tracker"
@@ -51,7 +52,7 @@ const ReaderMobilePage = () => {
   const [IsErrored, setIsErrored] = useState(false)
   const [BookAddress, setBookAddress] = useState(null)
   const [WalletAddress, setWalletAddress] = useState(null)
-  
+
   // Reader states
   const [ShowUI, setShowUI] = useState(true)
   const [Preview, setPreview] = useState(false)
@@ -64,13 +65,13 @@ const ReaderMobilePage = () => {
   const [PageBookmarked, setPageBookmarked] = useState(false)
   const [TotalLocations, setTotalLocations] = useState(0)
   const [CurrentLocationCFI, setCurrentLocationCFI] = useState("")
-  
+
   const [ShowTocPanel, setShowTocPanel] = useState(false)
   const [ShowContextMenu, setShowContextMenu] = useState(false)
   const [ShowAnnotationPanel, setShowAnnotationPanel] = useState(false)
   const [ShowCustomizerPanel, setShowCustomizerPanel] = useState(false)
   const [ShowTTSPlayer, setShowTTSPlayer] = useState(false)
-  
+
   const [IsTransitioning, setIsTransitioning] = useState(false)
   const [TouchStartX, setTouchStartX] = useState(null)
   const [TouchStartY, setTouchStartY] = useState(null)
@@ -99,41 +100,57 @@ const ReaderMobilePage = () => {
     }
   }, [])
 
-useEffect(() => {
-  if (!Rendition) return
 
-  const isMobileViewport = () =>
-    window.innerWidth <= 768 ||
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent,
-    )
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth <= 768); 
+    };
 
-  const handleResize = () => {
-    clearTimeout(resizeTimeoutRef.current)
-    resizeTimeoutRef.current = setTimeout(() => {
-      if (Rendition) {
-        Rendition.spread(isMobileViewport() ? "none" : "both")
-      }
-    }, 150)
-  }
+    checkIsMobile();
 
-  window.addEventListener("resize", handleResize)
-  return () => {
-    window.removeEventListener("resize", handleResize)
-    if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
-  }
-}, [Rendition])
+    window.addEventListener('resize', checkIsMobile);
 
-useEffect(() => {
-  const handleStorageChange = (e) => {
-    if (e.key && e.key.includes('bookmarks')) {
-      console.log('📚 localStorage bookmarks changed:', e.key, e.newValue)
+    return () => {
+      window.removeEventListener('resize', checkIsMobile);
+    };
+  }, []);
+  useEffect(() => {
+    if (!Rendition) return
+
+    const isMobileViewport = () =>
+      window.innerWidth <= 768 ||
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent,
+
+      )
+
+    const handleResize = () => {
+      clearTimeout(resizeTimeoutRef.current)
+      resizeTimeoutRef.current = setTimeout(() => {
+        if (Rendition) {
+          Rendition.spread(isMobileViewport() ? "none" : "both")
+        }
+      }, 150)
     }
-  };
 
-  window.addEventListener('storage', handleStorageChange);
-  return () => window.removeEventListener('storage', handleStorageChange);
-}, []);
+    window.addEventListener("resize", handleResize)
+    return () => {
+      window.removeEventListener("resize", handleResize)
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+    }
+  }, [Rendition])
+  console.log(IsMobile);
+
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key && e.key.includes('bookmarks')) {
+        console.log('📚 localStorage bookmarks changed:', e.key, e.newValue)
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
   useEffect(() => {
     const handleResizeObserverError = (e) => {
       if (e.message === "ResizeObserver loop completed with undelivered notifications.") {
@@ -165,61 +182,61 @@ useEffect(() => {
     [BookMeta],
   )
 
-const isCurrentPageBookmarked = () => {
-  if (!isUsable(Rendition) || !isUsable(BookMeta) || !BookMeta.id) {
-    console.log('Bookmark check failed: Missing rendition, book meta, or ID');
-    return false;
+  const isCurrentPageBookmarked = () => {
+    if (!isUsable(Rendition) || !isUsable(BookMeta) || !BookMeta.id) {
+      console.log('Bookmark check failed: Missing rendition, book meta, or ID');
+      return false;
+    }
+
+    try {
+      const bookKey = `${BookMeta.id}:bookmarks`;
+      const storedItem = window.localStorage.getItem(bookKey);
+
+      console.log('Checking bookmark for key:', bookKey);
+      console.log('Stored item:', storedItem);
+
+      if (!storedItem || storedItem === "") {
+        console.log('No bookmark found for this book');
+        return false;
+      }
+
+      const stored = JSON.parse(storedItem);
+      if (!stored || !stored.cfi) {
+        console.log('Invalid bookmark format');
+        return false;
+      }
+
+      const currentLocation = Rendition.currentLocation();
+      console.log('Current location:', currentLocation);
+
+      if (!currentLocation || !currentLocation.start) {
+        console.log('No current location available');
+        return false;
+      }
+
+      const currentCFI = currentLocation.start.cfi;
+      console.log('Comparing CFIs - Stored:', stored.cfi, 'Current:', currentCFI);
+
+      if (stored.cfi === currentCFI) {
+        console.log('EXACT MATCH: Page is bookmarked!');
+        return true;
+      }
+
+      const storedBase = stored.cfi.split('!')[0];
+      const currentBase = currentCFI.split('!')[0];
+
+      if (storedBase === currentBase) {
+        console.log('BASE MATCH: Likely same page/chapter');
+        return true;
+      }
+
+      console.log('NO MATCH: Page is not bookmarked');
+      return false;
+    } catch (err) {
+      console.warn("Error checking bookmark status:", err);
+      return false;
+    }
   }
-
-  try {
-    const bookKey = `${BookMeta.id}:bookmarks`;
-    const storedItem = window.localStorage.getItem(bookKey);
-    
-    console.log('Checking bookmark for key:', bookKey);
-    console.log('Stored item:', storedItem);
-    
-    if (!storedItem || storedItem === "") {
-      console.log('No bookmark found for this book');
-      return false;
-    }
-
-    const stored = JSON.parse(storedItem);
-    if (!stored || !stored.cfi) {
-      console.log('Invalid bookmark format');
-      return false;
-    }
-
-    const currentLocation = Rendition.currentLocation();
-    console.log('Current location:', currentLocation);
-    
-    if (!currentLocation || !currentLocation.start) {
-      console.log('No current location available');
-      return false;
-    }
-
-    const currentCFI = currentLocation.start.cfi;
-    console.log('Comparing CFIs - Stored:', stored.cfi, 'Current:', currentCFI);
-    
-    if (stored.cfi === currentCFI) {
-      console.log('EXACT MATCH: Page is bookmarked!');
-      return true;
-    }
-    
-    const storedBase = stored.cfi.split('!')[0];
-    const currentBase = currentCFI.split('!')[0];
-    
-    if (storedBase === currentBase) {
-      console.log('BASE MATCH: Likely same page/chapter');
-      return true;
-    }
-    
-    console.log('NO MATCH: Page is not bookmarked');
-    return false;
-  } catch (err) {
-    console.warn("Error checking bookmark status:", err);
-    return false;
-  }
-}
 
   const updateBookmarkedStatus = () => {
     const PageBookmarked = isCurrentPageBookmarked()
@@ -240,51 +257,47 @@ const isCurrentPageBookmarked = () => {
     }
   }
 
-  const navigatePage = useCallback(
-    async (direction, fromSwipe = false) => {
-      if (!Rendition || IsTransitioning) return
+// Add to your component's useEffect or initialization
+useEffect(() => {
+  const bookReader = document.getElementById('book__reader');
+  if (bookReader) {
+    // Enable smooth scrolling
+    bookReader.style.scrollBehavior = 'smooth';
+    
+    // Add momentum scrolling for touch devices
+    bookReader.style.webkitOverflowScrolling = 'touch';
+    
+    // Optimize rendering
+    bookReader.style.transform = 'translateZ(0)';
+    bookReader.style.willChange = 'transform';
+  }
+}, []);
 
-      setIsTransitioning(true)
-      setSwipeDirection(direction)
-
-      try {
-        const readerBook = document.getElementById("book__reader")
-
-        if (readerBook && fromSwipe) {
-          readerBook.classList.add(`page-slide--${direction}`)
-          await new Promise((resolve) => setTimeout(resolve, 100))
-        }
-
-        if (direction === "next") {
-          await Rendition.next()
-        } else {
-          await Rendition.prev()
-        }
-
-        if (readerBook && fromSwipe) {
-          setTimeout(() => {
-            readerBook.classList.remove(`page-slide--${direction}`)
-          }, 400)
-        }
-      } catch (error) {
-        console.error("Navigation error:", error)
-        const readerBook = document.getElementById("book__reader")
-        if (readerBook) {
-          readerBook.classList.remove(`page-slide--next`, `page-slide--prev`)
-        }
-      } finally {
-        setTimeout(
-          () => {
-            setIsTransitioning(false)
-            setSwipeDirection(null)
-          },
-          fromSwipe ? 500 : 100,
-        )
-      }
-    },
-    [Rendition, IsTransitioning],
-  )
-
+// Enhanced navigatePage function with smooth transitions
+const navigatePage = useCallback((direction) => {
+  if (!Rendition) return;
+  
+  // Add visual feedback
+  const buttons = document.querySelectorAll('.reader__container__prev-btn__button, .reader__container__next-btn__button');
+  buttons.forEach(btn => btn.style.transform = 'scale(0.95)');
+  
+  setTimeout(() => {
+    buttons.forEach(btn => btn.style.transform = '');
+  }, 150);
+  
+  // Navigate with smooth transition
+  if (direction === 'next') {
+    Rendition.next({
+      transition: 'slide',
+      duration: 300
+    });
+  } else {
+    Rendition.prev({
+      transition: 'slide',
+      duration: 300
+    });
+  }
+}, [Rendition]);
   const handleTouchStart = useCallback(
     (e) => {
       if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return
@@ -379,142 +392,142 @@ const isCurrentPageBookmarked = () => {
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen()
     else if (document.msExitFullscreen) document.msExitFullscreen()
   }, [])
-const addBookMark = useCallback(() => {
-  GaTracker("event_bookmarkpanel_bookmark")
-  if (isUsable(BookMeta) && isUsable(WalletAddress)) {
-    if (!isUsable(Rendition)) return
-    if (!isUsable(BookMeta) || !BookMeta.id) return
+  const addBookMark = useCallback(() => {
+    GaTracker("event_bookmarkpanel_bookmark")
+    if (isUsable(BookMeta) && isUsable(WalletAddress)) {
+      if (!isUsable(Rendition)) return
+      if (!isUsable(BookMeta) || !BookMeta.id) return
 
-    const currentLocation = Rendition.currentLocation()
-    console.log('Adding bookmark - Current location:', currentLocation)
-    
-    if (!currentLocation || !currentLocation.start) {
-      console.log('No current location available for bookmarking')
-      return
-    }
+      const currentLocation = Rendition.currentLocation()
+      console.log('Adding bookmark - Current location:', currentLocation)
 
-    setLoading(true)
-    const newBookmark = {
-      cfi: currentLocation.start.cfi,
-      percent: currentLocation.start.percentage,
-    }
-    console.log('Adding bookmark - New bookmark data:', newBookmark)
-    console.log('Book ID for saving:', BookMeta.id)
-    console.log('Wallet Address:', WalletAddress)
-    
-    if (Preview) {
-      console.log('Preview mode: Saving bookmark locally only')
-      try {
-        const bookKey = `${BookMeta.id}:bookmarks`
-        localStorage.setItem(bookKey, JSON.stringify(newBookmark))
-        console.log('✅ Bookmark saved locally in preview mode')
-        updateBookmarkedStatus()
-      } catch (err) {
-        console.error("❌ Error saving bookmark locally:", err)
-      } finally {
-        setLoading(false)
+      if (!currentLocation || !currentLocation.start) {
+        console.log('No current location available for bookmarking')
+        return
       }
-      return
-    }
-    
-    axios({
-      url: `${BASE_URL}/api/reader/bookmarks`,
-      method: "POST",
-      data: { 
-        bookAddress: BookMeta.id,
-        ownerAddress: WalletAddress,
-        bookmarks: JSON.stringify(newBookmark),
-      },
-    })
-      .then((res) => {
-        console.log('API Response:', res)
-        if (res.status === 200) {
-          const bookKey = `${BookMeta.id}:bookmarks`
-          localStorage.setItem(bookKey, JSON.stringify(newBookmark))
-          console.log(' with key:', bookKey)
-          console.log('Saved bookmark data:', newBookmark)
-          updateBookmarkedStatus()
-        } else {
-          console.log( res.status)
-        }
-      })
-      .catch((err) => {
+
+      setLoading(true)
+      const newBookmark = {
+        cfi: currentLocation.start.cfi,
+        percent: currentLocation.start.percentage,
+      }
+      console.log('Adding bookmark - New bookmark data:', newBookmark)
+      console.log('Book ID for saving:', BookMeta.id)
+      console.log('Wallet Address:', WalletAddress)
+
+      if (Preview) {
+        console.log('Preview mode: Saving bookmark locally only')
         try {
           const bookKey = `${BookMeta.id}:bookmarks`
           localStorage.setItem(bookKey, JSON.stringify(newBookmark))
-          console.log('API error')
+          console.log('✅ Bookmark saved locally in preview mode')
           updateBookmarkedStatus()
-        } catch (localErr) {
-          console.error( localErr)
+        } catch (err) {
+          console.error("❌ Error saving bookmark locally:", err)
+        } finally {
+          setLoading(false)
         }
-      })
-      .finally(() => setLoading(false))
-  } else {
-    console.log(' BookMeta:', BookMeta, 'WalletAddress:', WalletAddress)
-  }
-}, [Preview, BookMeta, WalletAddress, Rendition])
-
-const removeBookMark = useCallback(() => {
-  GaTracker("event_bookmarkpanel_bookmark_remove")
-  if (isUsable(BookMeta) && isUsable(WalletAddress)) {
-    if (!isUsable(Rendition)) return
-    if (!isUsable(BookMeta) || !BookMeta.id) return
-    
-    console.log('Removing bookmark for book:', BookMeta.id)
-    console.log('Wallet Address:', WalletAddress)
-    
-    if (Preview) {
-      console.log('Preview mode: Removing bookmark locally only')
-      try {
-        const bookKey = `${BookMeta.id}:bookmarks`
-        localStorage.setItem(bookKey, "")
-        updateBookmarkedStatus()
-      } catch (err) {
-        console.error("err", err)
-      } finally {
-        setLoading(false)
+        return
       }
-      return
-    }
-    
-    setLoading(true)
-    axios({
-      url: `${BASE_URL}/api/reader/bookmarks`,
-      method: "POST",
-      data: { 
-        bookAddress: BookMeta.id,
-        ownerAddress: WalletAddress,
-        bookmarks: "",
-      },
-    })
-      .then((res) => {
-        console.log('Remove bookmark API Response:', res)
-        if (res.status === 200) {
-          const bookKey = `${BookMeta.id}:bookmarks`
-          localStorage.setItem(bookKey, "")
-          console.log('removed from localStorage')
-          updateBookmarkedStatus()
-        } else {
-          console.log('non-200 status:', res.status)
-        }
+
+      axios({
+        url: `${BASE_URL}/api/reader/bookmarks`,
+        method: "POST",
+        data: {
+          bookAddress: BookMeta.id,
+          ownerAddress: WalletAddress,
+          bookmarks: JSON.stringify(newBookmark),
+        },
       })
-      .catch((err) => {
-        console.error(" API:", err)
-        // Even if API fails, try to remove locally
+        .then((res) => {
+          console.log('API Response:', res)
+          if (res.status === 200) {
+            const bookKey = `${BookMeta.id}:bookmarks`
+            localStorage.setItem(bookKey, JSON.stringify(newBookmark))
+            console.log(' with key:', bookKey)
+            console.log('Saved bookmark data:', newBookmark)
+            updateBookmarkedStatus()
+          } else {
+            console.log(res.status)
+          }
+        })
+        .catch((err) => {
+          try {
+            const bookKey = `${BookMeta.id}:bookmarks`
+            localStorage.setItem(bookKey, JSON.stringify(newBookmark))
+            console.log('API error')
+            updateBookmarkedStatus()
+          } catch (localErr) {
+            console.error(localErr)
+          }
+        })
+        .finally(() => setLoading(false))
+    } else {
+      console.log(' BookMeta:', BookMeta, 'WalletAddress:', WalletAddress)
+    }
+  }, [Preview, BookMeta, WalletAddress, Rendition])
+
+  const removeBookMark = useCallback(() => {
+    GaTracker("event_bookmarkpanel_bookmark_remove")
+    if (isUsable(BookMeta) && isUsable(WalletAddress)) {
+      if (!isUsable(Rendition)) return
+      if (!isUsable(BookMeta) || !BookMeta.id) return
+
+      console.log('Removing bookmark for book:', BookMeta.id)
+      console.log('Wallet Address:', WalletAddress)
+
+      if (Preview) {
+        console.log('Preview mode: Removing bookmark locally only')
         try {
           const bookKey = `${BookMeta.id}:bookmarks`
           localStorage.setItem(bookKey, "")
-          console.log(' despite API error')
           updateBookmarkedStatus()
-        } catch (localErr) {
-          console.error( localErr)
+        } catch (err) {
+          console.error("err", err)
+        } finally {
+          setLoading(false)
         }
+        return
+      }
+
+      setLoading(true)
+      axios({
+        url: `${BASE_URL}/api/reader/bookmarks`,
+        method: "POST",
+        data: {
+          bookAddress: BookMeta.id,
+          ownerAddress: WalletAddress,
+          bookmarks: "",
+        },
       })
-      .finally(() => setLoading(false))
-  } else {
-    console.log(BookMeta, 'WalletAddress:', WalletAddress)
-  }
-}, [Preview, BookMeta, WalletAddress, Rendition])
+        .then((res) => {
+          console.log('Remove bookmark API Response:', res)
+          if (res.status === 200) {
+            const bookKey = `${BookMeta.id}:bookmarks`
+            localStorage.setItem(bookKey, "")
+            console.log('removed from localStorage')
+            updateBookmarkedStatus()
+          } else {
+            console.log('non-200 status:', res.status)
+          }
+        })
+        .catch((err) => {
+          console.error(" API:", err)
+          // Even if API fails, try to remove locally
+          try {
+            const bookKey = `${BookMeta.id}:bookmarks`
+            localStorage.setItem(bookKey, "")
+            console.log(' despite API error')
+            updateBookmarkedStatus()
+          } catch (localErr) {
+            console.error(localErr)
+          }
+        })
+        .finally(() => setLoading(false))
+    } else {
+      console.log(BookMeta, 'WalletAddress:', WalletAddress)
+    }
+  }, [Preview, BookMeta, WalletAddress, Rendition])
   const toggleBookMark = useCallback(() => {
     // Call the direct function, not useCallback version
     const isCurrentlyBookmarked = isCurrentPageBookmarked()
@@ -551,7 +564,7 @@ const removeBookMark = useCallback(() => {
         setIsErrored(true)
         return
       }
-      
+
       dispatch(
         setUser({
           uid: userId,
@@ -627,16 +640,16 @@ const removeBookMark = useCallback(() => {
             snap: true,
             gap: 40,
             allowScriptedContent: true,
-              sandbox: ["allow-scripts", "allow-same-origin", "allow-modals"] // Remove restrictive sandboxing
+            sandbox: ["allow-scripts", "allow-same-origin", "allow-modals"] // Remove restrictive sandboxing
 
           })
 
           rendition.themes.default(ReaderBaseTheme)
-const isMobileViewport = () =>
-  window.innerWidth <= 768 ||
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+          const isMobileViewport = () =>
+            window.innerWidth <= 768 ||
+            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
-rendition.spread(isMobileViewport() ? "none" : "both")
+          rendition.spread(isMobileViewport() ? "none" : "both")
           if (!book.locations || !book.locations.length()) {
             await book.locations.generate(1024)
             console.log("Total locations generated:", book.locations.total)
@@ -644,7 +657,7 @@ rendition.spread(isMobileViewport() ? "none" : "both")
           window.__bookLocations = book.locations
 
           await rendition.display()
-          
+
           renditionInstance = rendition
           setRendition(rendition)
 
@@ -728,39 +741,39 @@ rendition.spread(isMobileViewport() ? "none" : "both")
             attachSwipeToDoc(content)
           })
 
-  
-rendition.on("selected", (cfiRange, contents) => {
-  try {
-    const selection = contents.window.getSelection()
-    const selectedText = selection?.toString() || ""
-    if (!selectedText.trim()) return
 
-    const range = selection.getRangeAt(0)
-    const rect = range.getBoundingClientRect()
+          rendition.on("selected", (cfiRange, contents) => {
+            try {
+              const selection = contents.window.getSelection()
+              const selectedText = selection?.toString() || ""
+              if (!selectedText.trim()) return
 
-    console.log("=== TEXT SELECTION DEBUG ===")
-    console.log("Selected text:", selectedText)
-    console.log("CFI Range:", cfiRange)
-    console.log("Rect position:", rect)
-    console.log("Context menu position state will be set to:", {
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10,
-    })
+              const range = selection.getRangeAt(0)
+              const rect = range.getBoundingClientRect()
 
-    setContextMenuPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10,
-    })
-    setPendingAnnotation({ 
-      cfiRange, 
-      text: selectedText.trim() 
-    })
-    setShowContextMenu(true)
-    
-  } catch (err) {
-    console.error("Error handling text selection:", err)
-  }
-}) 
+              console.log("=== TEXT SELECTION DEBUG ===")
+              console.log("Selected text:", selectedText)
+              console.log("CFI Range:", cfiRange)
+              console.log("Rect position:", rect)
+              console.log("Context menu position state will be set to:", {
+                x: rect.left + rect.width / 2,
+                y: rect.top - 10,
+              })
+
+              setContextMenuPosition({
+                x: rect.left + rect.width / 2,
+                y: rect.top - 10,
+              })
+              setPendingAnnotation({
+                cfiRange,
+                text: selectedText.trim()
+              })
+              setShowContextMenu(true)
+
+            } catch (err) {
+              console.error("Error handling text selection:", err)
+            }
+          })
 
           setLoading(false)
         })
@@ -831,17 +844,17 @@ rendition.on("selected", (cfiRange, contents) => {
 
   useEffect(() => {
     if (!IsReady || !Rendition || !CurrentLocationCFI) return
-    
+
     const updateChapterName = async () => {
       try {
         await Rendition.book.loaded.navigation
         const spineItem = Rendition.book.spine.get(CurrentLocationCFI)
         if (!spineItem) return
-        
+
         const navItem = Rendition.book.navigation.get(spineItem.href)
         setChapterName(navItem?.label?.trim() || "")
         console.log("Chapter name updated:", navItem?.label?.trim());
-        
+
       } catch (err) {
         console.warn("Error updating chapter name:", err)
       }
@@ -859,7 +872,7 @@ rendition.on("selected", (cfiRange, contents) => {
 
         setShowContextMenu(false)
         updateBookmarkedStatus()
-        
+
         if (event.start.location !== undefined) {
           setProgress(event.start.location)
         }
@@ -940,7 +953,7 @@ rendition.on("selected", (cfiRange, contents) => {
       try {
         const bookKey = `${BookMeta.id}:locations`
         const stored = localStorage.getItem(bookKey)
-        
+
         if (stored) {
           Rendition.book.locations.load(stored)
           const locationsArray = JSON.parse(stored)
@@ -1013,7 +1026,7 @@ rendition.on("selected", (cfiRange, contents) => {
     const updateBookmarkStatus = () => {
       setTimeout(() => {
         const isBookmarked = isCurrentPageBookmarked()
-        console.log('Bookmark status updated:', isBookmarked) 
+        console.log('Bookmark status updated:', isBookmarked)
         setPageBookmarked(isBookmarked)
       }, 100)
     }
@@ -1049,8 +1062,10 @@ rendition.on("selected", (cfiRange, contents) => {
     <div
       className={`reader ${IsTransitioning ? "reader--transitioning" : ""} ${IsMobile ? "reader--mobile" : "reader--desktop"}`}
     >
-      <div className={"reader__header" + (ShowUI ? " reader__header--show" : "")}>
-        <div className="reader__header__left">
+      <div className={`reader__header 
+  ${ShowUI ? "reader__header--show" : ""} 
+  ${IsMobile && ShowCustomizerPanel ? "reader__header--hidden" : ""}`}
+      >        <div className="reader__header__left">
           <div className="reader__header__left__timer">
             {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
           </div>
@@ -1091,17 +1106,18 @@ rendition.on("selected", (cfiRange, contents) => {
           >
             <FaQuoteLeft />
           </Button>
-         <Button
-  type="icon"
-  className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
-  onClick={toggleBookMark}
-  aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
->
-  <FaBookmark />
-  {PageBookmarked && (
-    <span className="bookmark-indicator-dot"></span>
-  )}
-</Button>
+          <Button
+            type="icon"
+            className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
+            onClick={toggleBookMark}
+            aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
+          >
+            <FaBookmark />
+            {PageBookmarked && (
+              <span className="bookmark-indicator-dot"></span>
+            )}
+          </Button>
+
           <Button
             type="icon"
             className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
@@ -1126,7 +1142,7 @@ rendition.on("selected", (cfiRange, contents) => {
           </Button>
         </div>
       </div>
-      
+
       <div className="reader__container" ref={readerContainerRef}>
         <div
           className={
@@ -1135,22 +1151,22 @@ rendition.on("selected", (cfiRange, contents) => {
               : "reader__container__bookmark"
           }
         ></div>
-        
+
         <div className="reader__container__prev-btn">
-          <div 
-            className="reader__container__prev-btn__button" 
+          <div
+            className="reader__container__prev-btn__button"
             onClick={() => navigatePage("prev", false)}
             aria-label="Previous page"
           >
             <FaChevronLeft width={32} />
           </div>
         </div>
-        
+
         <div id="book__reader" className="reader__container__book"></div>
-        
+
         <div className="reader__container__next-btn">
-          <div 
-            className="reader__container__next-btn__button" 
+          <div
+            className="reader__container__next-btn__button"
             onClick={() => navigatePage("next", false)}
             aria-label="Next page"
           >
@@ -1158,80 +1174,95 @@ rendition.on("selected", (cfiRange, contents) => {
           </div>
         </div>
 
-{ShowContextMenu && (
-  <div className="reader__container__context-menu-container reader__container__context-menu-container--show">
-    <AnnotationContextMenu
-      position={contextMenuPosition}
-      onAddAnnotation={(color) => {
-        console.log("Color selected:", color); 
-        console.log("Pending annotation:", pendingAnnotation); 
-        if (pendingAnnotation && addAnnotationRef.current) {
-          addAnnotationRef.current({
-            cfiRange: pendingAnnotation.cfiRange,
-            text: pendingAnnotation.text,
-            color,
-          })
-        }
-        setShowContextMenu(false)
-      }}
-      onClose={() => setShowContextMenu(false)}
-    />
-  </div>
+        {ShowContextMenu && (
+          <div className="reader__container__context-menu-container reader__container__context-menu-container--show">
+            <AnnotationContextMenu
+              position={contextMenuPosition}
+              onAddAnnotation={(color) => {
+                console.log("Color selected:", color);
+                console.log("Pending annotation:", pendingAnnotation);
+                if (pendingAnnotation && addAnnotationRef.current) {
+                  addAnnotationRef.current({
+                    cfiRange: pendingAnnotation.cfiRange,
+                    text: pendingAnnotation.text,
+                    color,
+                  })
+                }
+                setShowContextMenu(false)
+              }}
+              onClose={() => setShowContextMenu(false)}
+            />
+          </div>
+        )}
+
+<SidePanel 
+  show={ShowTocPanel} 
+  setShow={setShowTocPanel} 
+  position="right"
+>
+  <TocPanel
+    onSelect={() => {
+      hideAllPanel({ toc: false })
+      setShowTocPanel(false)
+    }}
+    rendition={Rendition}
+  />
+</SidePanel>
+
+<SidePanel 
+  show={ShowAnnotationPanel} 
+  setShow={setShowAnnotationPanel} 
+  position="right"
+>
+  <AnnotationPanel
+    mobileView={true}
+    preview={Preview}
+    rendition={Rendition}
+    bookMeta={BookMeta}
+    show={ShowAnnotationPanel}
+    addAnnotationRef={addAnnotationRef}
+    hideModal={() => {
+      setShowAnnotationPanel(false)
+    }}
+    onRemove={() => {
+      setShowAnnotationPanel(false)
+    }}
+  />
+</SidePanel>
+
+<SidePanel
+  show={ShowCustomizerPanel}
+  setShow={setShowCustomizerPanel}
+  position="right-bottom"
+  className="sidepanel--customizer"  // Only this prop needed
+>
+  <Customizer initialFontSize={100} rendition={Rendition} />
+</SidePanel>
+      </div>
+
+{ShowUI && (
+  <nav className="reader__nav reader__nav--show">
+    <div className="reader__nav__value">
+      <div className="reader__nav__value__chapter-title typo__gray--n600 typo__transform--capital">
+        {ChapterName || BookMeta.title || ""}
+      </div>
+      <div>{Math.floor((debouncedProgress * 100) / (TotalLocations || 1)) || "0"}%</div>
+    </div>
+    <div className="reader__nav__progress">
+      <RangeSlider
+        value={Progress}
+        onChange={handlePageUpdate}
+        max={TotalLocations || 100}
+        className="reader__nav__progress"
+      />
+    </div>
+  </nav>
 )}
 
-        <SidePanel show={ShowTocPanel} setShow={setShowTocPanel} position="right">
-          <TocPanel
-            onSelect={() => {
-              hideAllPanel({ toc: false })
-              setShowTocPanel(false)
-            }}
-            rendition={Rendition}
-          />
-        </SidePanel>
-        
-        <SidePanel show={ShowAnnotationPanel} setShow={setShowAnnotationPanel} position="right">
-          <AnnotationPanel
-            mobileView={true}
-            preview={Preview}
-            rendition={Rendition}
-            bookMeta={BookMeta}
-            show={ShowAnnotationPanel}
-            addAnnotationRef={addAnnotationRef}
-            hideModal={() => {
-              setShowAnnotationPanel(false)
-            }}
-            onRemove={() => {
-              setShowAnnotationPanel(false)
-            }}
-          />
-        </SidePanel>
-        
-        <SidePanel show={ShowCustomizerPanel} setShow={setShowCustomizerPanel} position="right-bottom">
-          <Customizer initialFontSize={100} rendition={Rendition} />
-        </SidePanel>
-      </div>
-      
-      <nav className={"reader__nav" + (ShowUI ? " reader__nav--show" : "")}>
-        <div className="reader__nav__value">
-          <div className="reader__nav__value__chapter-title typo__gray--n600 typo__transform--capital">
-            {ChapterName || BookMeta.title || ""}
-          </div>
-          <div>{Math.floor((debouncedProgress * 100) / (TotalLocations || 1)) || "0"}%</div>
-        </div>
-        <div className="reader__nav__progress">
-          <RangeSlider
-            value={Progress}
-            onChange={handlePageUpdate}
-            max={TotalLocations || 100}
-            className="reader__nav__progress"
-          />
-        </div>
-      </nav>
-      
-      <TextToSpeechPlayer 
-        rendition={Rendition} 
-        isVisible={ShowTTSPlayer} 
-        onClose={() => setShowTTSPlayer(false)} 
+      <TextToSpeechPlayer
+        rendition={Rendition}
+        isVisible={ShowTTSPlayer}
+        onClose={() => setShowTTSPlayer(false)}
       />
     </div>
   )
