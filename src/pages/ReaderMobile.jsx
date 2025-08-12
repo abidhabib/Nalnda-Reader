@@ -257,34 +257,49 @@ const ReaderMobilePage = () => {
       setProgress(Number(e.target.value))
     }
   }
+  useEffect(() => {
+  // Preload fonts before rendering
+  const preloadFonts = () => {
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.href = "/path/to/font.woff2";
+    link.as = "font";
+    link.type = "font/woff2";
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  };
 
-  const navigatePage = useCallback(
-    async (direction) => {
-      if (!Rendition || isSwiping) return;
-      
-      setIsSwiping(true);
-      try {
-        if (direction === "next") {
-          await Rendition.next()
-        } else {
-          await Rendition.prev()
-        }
-        
-        // Update current location and progress
-        const location = Rendition.currentLocation();
-        if (location && location.start) {
-          setCurrentLocationCFI(location.start.cfi);
-          const newProgress = location.start.percentage * 100;
-          setProgress(newProgress);
-        }
-      } catch (error) {
-        console.error('Navigation error:', error);
-      } finally {
-        setIsSwiping(false);
+  preloadFonts();
+}, []);
+// Optimize page transitions
+const navigatePage = useCallback(
+  async (direction) => {
+    if (!Rendition || isSwiping) return;
+
+    setIsSwiping(true);
+    try {
+      // Pre-render the next/previous page
+      const targetPage = direction === "next" ? await Rendition.next() : await Rendition.prev();
+
+      // Apply smooth transition
+      const iframe = document.querySelector("#book__reader iframe");
+      if (iframe) {
+        iframe.style.transition = "transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)";
+        iframe.style.transform = `translate3d(${direction === "next" ? "-100%" : "100%"}, 0, 0)`;
+
+        setTimeout(() => {
+          iframe.style.transition = "";
+          iframe.style.transform = "translate3d(0, 0, 0)";
+        }, 300);
       }
-    },
-    [Rendition, isSwiping]
-  );
+    } catch (error) {
+      console.error('Navigation error:', error);
+    } finally {
+      setIsSwiping(false);
+    }
+  },
+  [Rendition, isSwiping]
+);
 
   const openFullscreen = useCallback(() => {
     const elem = document.documentElement
@@ -600,67 +615,73 @@ const ReaderMobilePage = () => {
               isAnimating = false;
             };
 
-            const touchMove = (e) => {
-              if (e.touches.length !== 1) return;
-              if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
+// Enhanced slow movement handling
+const touchMove = (e) => {
+  if (e.touches.length !== 1) return;
+  if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-              const x = e.touches[0].clientX;
-              const y = e.touches[0].clientY;
-              const dx = x - startX;
-              const dy = y - startY;
+  const x = e.touches[0].clientX;
+  const y = e.touches[0].clientY;
+  const dx = x - startX;
+  const dy = y - startY;
 
-              if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) {
-                isDragging = true;
-                setIsSwiping(true);
-                e.preventDefault();
-              }
+  // More sensitive drag detection for slow movements
+  if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 3) { // Reduced threshold
+    isDragging = true;
+    setIsSwiping(true);
+    e.preventDefault();
+  }
 
-              if (!isDragging) return;
+  if (!isDragging) return;
 
-              deltaX = dx;
-              const dt = Math.max(1, e.timeStamp - lastT);
-              velocity = (x - lastX) / dt;
-              lastX = x;
-              lastT = e.timeStamp;
+  deltaX = dx;
+  const dt = Math.max(1, e.timeStamp - lastT);
+  velocity = (x - lastX) / dt;
+  lastX = x;
+  lastT = e.timeStamp;
 
-              setTransform(deltaX);
-            };
+  // Immediate visual feedback for slow movements
+  setTransform(deltaX);
+};
 
-            const touchEnd = () => {
-              if (!isDragging) {
-                resetTransform();
-                setIsSwiping(false);
-                return;
-              }
+const touchEnd = () => {
+  if (!isDragging) {
+    resetTransform();
+    setIsSwiping(false);
+    return;
+  }
 
-              const distance = Math.abs(deltaX);
-              const speed = Math.abs(velocity);
-              const passed = distance > threshold || speed > 0.3;
+  const distance = Math.abs(deltaX);
+  const speed = Math.abs(velocity);
+  
+  // Lower thresholds for slow movements
+  const passed = distance > threshold * 0.5 || speed > 0.1; // More sensitive
 
-              if (passed && renditionInstance) {
-                const direction = deltaX < 0 ? 'next' : 'prev';
-                const targetX = direction === 'next' ? -window.innerWidth : window.innerWidth;
-                
-                // Animate page turn
-                iframe.style.transition = "transform 300ms cubic-bezier(0.25, 0.8, 0.25, 1)";
-                iframe.style.transform = `translate3d(${targetX}px, 0, 0)`;
-                
-                setTimeout(() => {
-                  if (direction === 'next') {
-                    renditionInstance.next();
-                  } else {
-                    renditionInstance.prev();
-                  }
-                  resetTransform(false);
-                  setIsSwiping(false);
-                }, 300);
-              } else {
-                resetTransform();
-                setIsSwiping(false);
-              }
+  if (passed && renditionInstance) {
+    const direction = deltaX < 0 ? 'next' : 'prev';
+    const targetX = direction === 'next' ? -window.innerWidth : window.innerWidth;
+    
+    // Smooth animation even for slow movements
+    iframe.style.transition = "transform 250ms cubic-bezier(0.25, 0.8, 0.25, 1)";
+    iframe.style.transform = `translate3d(${targetX}px, 0, 0)`;
+    
+    setTimeout(() => {
+      if (direction === 'next') {
+        renditionInstance.next();
+      } else {
+        renditionInstance.prev();
+      }
+      resetTransform(false);
+      setIsSwiping(false);
+    }, 250);
+  } else {
+    // Spring back animation for cancelled swipes
+    resetTransform();
+    setIsSwiping(false);
+  }
 
-              isDragging = false;
-            };
+  isDragging = false;
+};
 
             // Enhanced momentum-based animation
             const momentumScroll = () => {
