@@ -371,3 +371,70 @@
     transform: none;
   }
 }
+
+
+.reader-mobile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.reader__container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+  transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+// Add these styles for the book content
+#book__reader {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: white;
+}
+
+// Navigation buttons
+.reader__container__prev-btn,
+.reader__container__next-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 50px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &__button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+  }
+}
+
+.reader__container__prev-btn {
+  left: 10px;
+}
+
+.reader__container__next-btn {
+  right: 10px;
+}
