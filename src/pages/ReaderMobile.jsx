@@ -87,6 +87,7 @@ const ReaderMobilePage = () => {
   const resizeTimeoutRef = useRef()
   const bookInstanceRef = useRef(null)
   const debouncedProgress = useDebounce(Progress, 300)
+  const pageCacheRef = useRef(new Map())
 
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [pendingAnnotation, setPendingAnnotation] = useState(null)
@@ -100,6 +101,7 @@ const ReaderMobilePage = () => {
       }
       bookInstanceRef.current = null
     }
+    pageCacheRef.current.clear()
   }, [])
 
   useEffect(() => {
@@ -257,49 +259,23 @@ const ReaderMobilePage = () => {
       setProgress(Number(e.target.value))
     }
   }
-  useEffect(() => {
-  // Preload fonts before rendering
-  const preloadFonts = () => {
-    const link = document.createElement("link");
-    link.rel = "preload";
-    link.href = "/path/to/font.woff2";
-    link.as = "font";
-    link.type = "font/woff2";
-    link.crossOrigin = "anonymous";
-    document.head.appendChild(link);
-  };
 
-  preloadFonts();
-}, []);
-// Optimize page transitions
-const navigatePage = useCallback(
-  async (direction) => {
-    if (!Rendition || isSwiping) return;
-
-    setIsSwiping(true);
-    try {
-      // Pre-render the next/previous page
-      const targetPage = direction === "next" ? await Rendition.next() : await Rendition.prev();
-
-      // Apply smooth transition
-      const iframe = document.querySelector("#book__reader iframe");
-      if (iframe) {
-        iframe.style.transition = "transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)";
-        iframe.style.transform = `translate3d(${direction === "next" ? "-100%" : "100%"}, 0, 0)`;
-
-        setTimeout(() => {
-          iframe.style.transition = "";
-          iframe.style.transform = "translate3d(0, 0, 0)";
-        }, 300);
+  const navigatePage = useCallback(
+    (direction) => {
+      if (!isUsable(Rendition)) return
+      if (direction === "next") {
+        Rendition.next().catch((err) => {
+          console.warn("Error navigating to next page:", err)
+        })
+      } else if (direction === "prev") {
+        Rendition.prev().catch((err) => {
+          console.warn("Error navigating to previous page:", err)
+        })
       }
-    } catch (error) {
-      console.error('Navigation error:', error);
-    } finally {
-      setIsSwiping(false);
-    }
-  },
-  [Rendition, isSwiping]
-);
+    },
+    [Rendition]
+
+  );
 
   const openFullscreen = useCallback(() => {
     const elem = document.documentElement
@@ -513,6 +489,7 @@ const navigatePage = useCallback(
     hideAllPanel()
   }, [ShowUI, hideAllPanel])
 
+  // Enhanced book rendering with content sanitization
   useEffect(() => {
     if (!IsReady || !BookMeta || !BookUrl) return
 
@@ -528,7 +505,12 @@ const navigatePage = useCallback(
     cleanupBook()
 
     try {
-      const book = Epub(bookURL, { openAs: "epub" })
+      // Enhanced book initialization with better error handling
+      const book = Epub(bookURL, { 
+        openAs: "epub",
+        requestCredentials: false,
+        canonical: (uri) => uri.replace(/file:\/\/.*?epub\//, "")
+      })
       bookInstanceRef.current = book
 
       book.ready
@@ -536,34 +518,89 @@ const navigatePage = useCallback(
           const elm = document.querySelector("#book__reader")
           if (elm) elm.innerHTML = ""
 
+          // Optimized rendition settings for mobile
           const rendition = book.renderTo("book__reader", {
             width: "100%",
             height: "100%",
-            manager: "default",
+            manager: "continuous",
             flow: "paginated",
             snap: true,
-            gap: 40,
-            allowScriptedContent: true,
-            sandbox: ["allow-scripts", "allow-same-origin", "allow-modals"]
+            gap: "30px",
+            allowScriptedContent: false,
+            sandbox: ["allow-same-origin"],
+            method: "blobUrl"
           })
 
-          rendition.themes.default(ReaderBaseTheme)
+          // Apply base theme with fallback fonts
+          rendition.themes.default({
+            ...ReaderBaseTheme,
+            body: {
+              ...ReaderBaseTheme.body,
+              fontFamily: "Georgia, serif",
+              "-webkit-font-smoothing": "antialiased",
+              "-moz-osx-font-smoothing": "grayscale"
+            }
+          })
+
           const isMobileViewport = () =>
             window.innerWidth <= 768 ||
             /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
           rendition.spread(isMobileViewport() ? "none" : "both")
+          
+          // Generate locations with optimized chunk size
           if (!book.locations || !book.locations.length()) {
-            await book.locations.generate(1024)
+            await book.locations.generate(1600)
           }
           window.__bookLocations = book.locations
+
+          // Enhanced content sanitization
+          rendition.hooks.content.register((contents) => {
+            const doc = contents.document;
+            
+            // Remove problematic elements
+            const scripts = doc.querySelectorAll('script');
+            scripts.forEach(script => script.remove());
+            
+            const iframes = doc.querySelectorAll('iframe');
+            iframes.forEach(iframe => {
+              iframe.style.border = 'none';
+              iframe.style.width = '100%';
+            });
+            
+            // Apply global styles to prevent rendering issues
+            const style = doc.createElement('style');
+            style.textContent = `
+              * {
+                box-sizing: border-box;
+                -webkit-tap-highlight-color: transparent;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                font-family: Georgia, serif;
+                font-size: 16px;
+                line-height: 1.6;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+              }
+              p {
+                margin: 0 0 1em 0;
+              }
+              img {
+                max-width: 100%;
+                height: auto;
+              }
+            `;
+            doc.head.appendChild(style);
+          });
 
           await rendition.display()
 
           renditionInstance = rendition
           setRendition(rendition)
           
-          // Enhanced swipe handling for natural page turning
+          // Enhanced swipe handling with better performance
           const attachSwipeToDoc = (content) => {
             if (!content?.document || attachedDocs.has(content.document)) return;
             attachedDocs.add(content.document);
@@ -574,16 +611,10 @@ const navigatePage = useCallback(
             let startX = 0;
             let startY = 0;
             let deltaX = 0;
-            let lastX = 0;
-            let lastT = 0;
-            let velocity = 0;
             let isDragging = false;
             let rafId = null;
-            let isAnimating = false;
 
-            const threshold = Math.min(window.innerWidth * 0.15, 80);
-            const damping = 0.85;
-            const minVelocity = 0.1;
+            const threshold = Math.min(window.innerWidth * 0.1, 60);
 
             const setTransform = (x) => {
               if (rafId) cancelAnimationFrame(rafId);
@@ -596,7 +627,7 @@ const navigatePage = useCallback(
             const resetTransform = (animate = true) => {
               if (rafId) cancelAnimationFrame(rafId);
               iframe.style.willChange = 'auto';
-              iframe.style.transition = animate ? "transform 300ms cubic-bezier(0.25, 0.8, 0.25, 1)" : "none";
+              iframe.style.transition = animate ? "transform 250ms cubic-bezier(0.25, 0.1, 0.25, 1)" : "none";
               iframe.style.transform = "translate3d(0, 0, 0)";
             };
 
@@ -604,99 +635,73 @@ const navigatePage = useCallback(
               if (e.touches.length !== 1) return;
               if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-              startX = lastX = e.touches[0].clientX;
+              startX = e.touches[0].clientX;
               startY = e.touches[0].clientY;
               deltaX = 0;
-              velocity = 0;
               isDragging = false;
-              lastT = e.timeStamp;
               iframe.style.transition = "none";
               iframe.style.willChange = 'transform';
-              isAnimating = false;
             };
 
-// Enhanced slow movement handling
-const touchMove = (e) => {
-  if (e.touches.length !== 1) return;
-  if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
+            const touchMove = (e) => {
+              if (e.touches.length !== 1) return;
+              if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-  const x = e.touches[0].clientX;
-  const y = e.touches[0].clientY;
-  const dx = x - startX;
-  const dy = y - startY;
+              const x = e.touches[0].clientX;
+              const y = e.touches[0].clientY;
+              const dx = x - startX;
+              const dy = y - startY;
 
-  // More sensitive drag detection for slow movements
-  if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 3) { // Reduced threshold
-    isDragging = true;
-    setIsSwiping(true);
-    e.preventDefault();
-  }
-
-  if (!isDragging) return;
-
-  deltaX = dx;
-  const dt = Math.max(1, e.timeStamp - lastT);
-  velocity = (x - lastX) / dt;
-  lastX = x;
-  lastT = e.timeStamp;
-
-  // Immediate visual feedback for slow movements
-  setTransform(deltaX);
-};
-
-const touchEnd = () => {
-  if (!isDragging) {
-    resetTransform();
-    setIsSwiping(false);
-    return;
-  }
-
-  const distance = Math.abs(deltaX);
-  const speed = Math.abs(velocity);
-  
-  // Lower thresholds for slow movements
-  const passed = distance > threshold * 0.5 || speed > 0.1; // More sensitive
-
-  if (passed && renditionInstance) {
-    const direction = deltaX < 0 ? 'next' : 'prev';
-    const targetX = direction === 'next' ? -window.innerWidth : window.innerWidth;
-    
-    // Smooth animation even for slow movements
-    iframe.style.transition = "transform 250ms cubic-bezier(0.25, 0.8, 0.25, 1)";
-    iframe.style.transform = `translate3d(${targetX}px, 0, 0)`;
-    
-    setTimeout(() => {
-      if (direction === 'next') {
-        renditionInstance.next();
-      } else {
-        renditionInstance.prev();
-      }
-      resetTransform(false);
-      setIsSwiping(false);
-    }, 250);
-  } else {
-    // Spring back animation for cancelled swipes
-    resetTransform();
-    setIsSwiping(false);
-  }
-
-  isDragging = false;
-};
-
-            // Enhanced momentum-based animation
-            const momentumScroll = () => {
-              if (!isDragging || isAnimating) return;
-              
-              velocity *= damping;
-              deltaX += velocity * 16; // 16ms frame time approximation
-              
-              setTransform(deltaX);
-              
-              if (Math.abs(velocity) > minVelocity) {
-                rafId = requestAnimationFrame(momentumScroll);
-              } else {
-                isAnimating = false;
+              // More sensitive detection for slow movements
+              if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 2) {
+                isDragging = true;
+                setIsSwiping(true);
+                e.preventDefault();
               }
+
+              if (!isDragging) return;
+
+              deltaX = dx;
+              setTransform(deltaX);
+            };
+
+            const touchEnd = () => {
+              if (!isDragging) {
+                resetTransform();
+                setIsSwiping(false);
+                return;
+              }
+
+              const distance = Math.abs(deltaX);
+              const passed = distance > threshold;
+
+              if (passed && renditionInstance) {
+                const direction = deltaX < 0 ? 'next' : 'prev';
+                const targetX = direction === 'next' ? -window.innerWidth * 0.8 : window.innerWidth * 0.8;
+                
+                // Smooth page turn animation
+                iframe.style.transition = "transform 250ms cubic-bezier(0.25, 0.1, 0.25, 1)";
+                iframe.style.transform = `translate3d(${targetX}px, 0, 0)`;
+                
+                setTimeout(async () => {
+                  try {
+                    if (direction === 'next') {
+                      await renditionInstance.next();
+                    } else {
+                      await renditionInstance.prev();
+                    }
+                  } catch (err) {
+                    console.warn('Navigation error:', err);
+                  }
+                  resetTransform(false);
+                  setIsSwiping(false);
+                }, 250);
+              } else {
+                resetTransform();
+                setIsSwiping(false);
+              }
+
+              isDragging = false;
             };
 
             content.document.addEventListener("touchstart", touchStart, { passive: true });
@@ -736,10 +741,12 @@ const touchEnd = () => {
           setLoading(false)
         })
         .catch((err) => {
+          console.error('Book loading error:', err);
           setIsErrored(true)
           setLoading(false)
         })
     } catch (err) {
+      console.error('Book initialization error:', err);
       setIsErrored(true)
       setLoading(false)
     }
@@ -915,7 +922,7 @@ const touchEnd = () => {
           const locationsArray = JSON.parse(stored)
           setTotalLocations(Array.isArray(locationsArray) ? locationsArray.length : 0)
         } else {
-          await Rendition.book.locations.generate(1024)
+          await Rendition.book.locations.generate(1600)
           setTotalLocations(Rendition.book.locations.total)
           localStorage.setItem(bookKey, Rendition.book.locations.save())
         }
@@ -1097,9 +1104,9 @@ const touchEnd = () => {
           </div>
         </div>
 
-        <div id="book__reader" className="reader__container__book"></div>
+        <div id="book__reader" className=""></div>
 
-        <div className="reader__container__next-btn">
+        <div className="">
           <div
             className="reader__container__next-btn__button"
             onClick={() => navigatePage("next")}

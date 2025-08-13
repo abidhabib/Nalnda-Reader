@@ -28,3 +28,22 @@
 @import "./sass/components/ui/numberInput";
 
 @import "./sass/pages/reader";
+/* Reset stylesheet */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Arial', sans-serif; /* Fallback font */
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+p, h1, h2, h3 {
+  margin: 0;
+  padding: 0;
+}
