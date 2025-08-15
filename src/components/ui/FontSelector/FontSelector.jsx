@@ -126,6 +126,10 @@ const FontSelector = ({ selectedFont, onFontSelect }) => {
   const currentFonts = getFontsByCategory(currentCategory)
 
   return (
+
+   <>
+   
+{/*    
     <div className="font-selector">
       <div className="font-selector__header">
         <div className="font-selector__category-nav">
@@ -213,6 +217,8 @@ const FontSelector = ({ selectedFont, onFontSelect }) => {
         ))}
       </div>
     </div>
+    */}
+   </>
   )
 }
 
