@@ -1,322 +1,175 @@
 .font-selector {
-    width: 100%;
-    
-    &__header {
-      margin-bottom: 2rem;
-    }
-    
-    &__category-nav {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-      overflow-x: auto;
-      padding-bottom: 0.5rem;
-      
-      &::-webkit-scrollbar {
-        height: 2px;
-      }
-      
-      &::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      
-      &::-webkit-scrollbar-thumb {
-        background: $color-neutral-300;
-        border-radius: 1px;
-      }
-    }
-    
-    &__category-btn {
-      flex-shrink: 0;
-      padding: 0.8rem 1.5rem;
-      border: 2px solid $color-neutral-300;
-      background: transparent;
-      border-radius: 2rem;
-      font-size: 1.2rem;
-      font-weight: 500;
-      color: $color-neutral-600;
-      cursor: pointer;
-      transition: all 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
-      
-      &:hover {
-        border-color: $color-secondary;
-        color: $color-secondary;
-        transform: translateY(-1px);
-      }
-      
-      &--active {
-        border-color: $color-secondary;
-        background-color: $color-secondary;
-        color: white;
-        transform: scale(1.05);
-      }
-    }
-    
-    &__swipe-hint {
-      text-align: center;
-      font-size: 1.1rem;
-      color: $color-neutral-500;
-      font-style: italic;
-    }
-    
-    &__container {
-      position: relative;
-      overflow: hidden;
-      border-radius: 1rem;
-      background: $color-neutral-100;
-      padding: 1rem;
-      min-height: 30rem;
-      
-      &--transitioning {
-        .font-selector__fonts {
-          transform: scale(0.95);
-          opacity: 0.7;
-        }
-      }
-    }
-    
-    &__fonts {
-      display: grid;
-      gap: 1rem;
-      transition: all 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    }
-    
-    &__font {
-      padding: 2rem;
-      border: 2px solid $color-neutral-300;
-      border-radius: 1rem;
-      background: white;
-      cursor: pointer;
-      transition: all 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
-      
-      &:hover {
-        border-color: $color-secondary;
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba($color-secondary, 0.15);
-      }
-      
-      &--selected {
-        border-color: $color-secondary;
-        background: rgba($color-secondary, 0.05);
-        transform: scale(1.02);
-        box-shadow: 0 8px 25px rgba($color-secondary, 0.2);
-      }
-      
-      &__demo {
-        font-size: 1.8rem;
-        font-weight: 400;
-        line-height: 1.4;
-        margin-bottom: 1rem;
-        color: $color-neutral-800;
-      }
-      
-      &__name {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: $color-neutral-600;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      }
-    }
-    
-    &__indicators {
-      display: flex;
-      justify-content: center;
-      gap: 0.8rem;
-      margin-top: 2rem;
-    }
-    
-    &__indicator {
-      width: 0.8rem;
-      height: 0.8rem;
-      border-radius: 50%;
-      background: $color-neutral-300;
-      transition: all 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
-      
-      &--active {
-        background: $color-secondary;
-        transform: scale(1.3);
-      }
-    }
-  }
-  
-  // Dark theme
-  [data-theme="dark"] .font-selector {
-    &__category-btn {
-      border-color: $color-neutral-700;
-      color: $color-neutral-400;
-      
-      &:hover {
-        border-color: $color-secondary;
-        color: $color-secondary;
-      }
-      
-      &--active {
-        border-color: $color-secondary;
-        background-color: $color-secondary;
-        color: white;
-      }
-    }
-    
-    &__swipe-hint {
-      color: $color-neutral-400;
-    }
-    
-    &__container {
-      background: $color-neutral-800;
-    }
-    
-    &__font {
-      border-color: $color-neutral-700;
-      background: $color-neutral-900;
-      
-      &:hover {
-        border-color: $color-secondary;
-      }
-      
-      &--selected {
-        border-color: $color-secondary;
-        background: rgba($color-secondary, 0.1);
-      }
-      
-      &__demo {
-        color: $color-neutral-200;
-      }
-      
-      &__name {
-        color: $color-neutral-400;
-      }
-    }
-    
-    &__indicator {
-      background: $color-neutral-700;
-      
-      &--active {
-        background: $color-secondary;
-      }
-    }
-  }
-  
-  // Sepia theme
-  [data-theme="sepia"] .font-selector {
-    &__category-btn {
-      border-color: #d4c4a8;
-      color: #7a6b52;
-      
-      &:hover {
-        border-color: $color-secondary;
-        color: $color-secondary;
-      }
-      
-      &--active {
-        border-color: $color-secondary;
-        background-color: $color-secondary;
-        color: white;
-      }
-    }
-    
-    &__swipe-hint {
-      color: #7a6b52;
-    }
-    
-    &__container {
-      background: #e8e0d0;
-    }
-    
-    &__font {
-      border-color: #d4c4a8;
-      background: #f4f1ea;
-      
-      &:hover {
-        border-color: $color-secondary;
-      }
-      
-      &--selected {
-        border-color: $color-secondary;
-        background: rgba($color-secondary, 0.1);
-      }
-      
-      &__demo {
-        color: #5c4b37;
-      }
-      
-      &__name {
-        color: #7a6b52;
-      }
-    }
-    
-    &__indicator {
-      background: #d4c4a8;
-      
-      &--active {
-        background: $color-secondary;
-      }
-    }
-  }
-  // Add these critical fixes for iOS Safari
-.font-selector {
-  // Fix for iOS Safari touch issues
-  -webkit-touch-callout: none;
+  position: relative;
+  width: 100%;
   -webkit-user-select: none;
   -moz-user-select: none;
-  -ms-user-select: none;
   user-select: none;
   
-  // Hardware acceleration fixes
-  transform: translate3d(0, 0, 0);
-  -webkit-transform: translate3d(0, 0, 0);
-  
-  &__container {
-    // Ensure proper touch handling
-    touch-action: pan-y;
-    -webkit-touch-callout: none;
-    
-    // Hardware acceleration for smooth animations
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-    
-    // Fix for iOS momentum scrolling
-    -webkit-overflow-scrolling: touch;
-    
-    &--transitioning {
-      transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
-      -webkit-transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
-    }
+  &__header {
+    margin-bottom: 20px;
   }
   
-  &__font {
-    // Better touch targets for iOS
-    min-height: 44px;
-    cursor: pointer;
-    
-    // Fix for iOS tap highlight
-    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
-    
-    &:active {
-      opacity: 0.7;
-    }
+  &__category-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
   }
   
   &__category-btn {
-    // Better touch targets
-    min-height: 44px;
-    min-width: 44px;
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 15px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
     
-    // Fix for iOS button styling
-    -webkit-appearance: none;
-    border-radius: 0;
+    &--active {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+  }
+  
+  &__swipe-hint {
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+  }
+  
+  &__nav-arrows {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 10;
+  }
+  
+  &__nav-arrow {
+    pointer-events: auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ddd;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    -webkit-tap-highlight-color: transparent;
     
-    &:active {
-      opacity: 0.7;
+    &:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    
+    &--prev {
+      margin-left: 10px;
+    }
+    
+    &--next {
+      margin-right: 10px;
+    }
+  }
+  
+  &__container {
+    position: relative;
+    width: 100%;
+    min-height: 300px;
+    overflow: hidden;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background: #fafafa;
+    touch-action: pan-y pinch-zoom;
+  }
+  
+  &__fonts {
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  &__font {
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    
+    &:hover {
+      border-color: #007bff;
+      box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+    }
+    
+    &--selected {
+      border-color: #007bff;
+      background: #e6f0ff;
+      box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+    }
+    
+    &__demo {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    
+    &__name {
+      font-size: 14px;
+      color: #666;
+    }
+  }
+  
+  &__indicators {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  
+  &__indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ddd;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    
+    &--active {
+      background: #007bff;
+      transform: scale(1.2);
     }
   }
 }
 
 // iOS specific fixes
 @supports (-webkit-touch-callout: none) {
-  .font-selector__container {
-    // Fix for iOS 13+ passive event listeners
-    touch-action: manipulation;
+  .font-selector {
+    -webkit-touch-callout: none;
+    
+    &__container {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    &__font,
+    &__category-btn,
+    &__indicator,
+    &__nav-arrow {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
   }
 }
