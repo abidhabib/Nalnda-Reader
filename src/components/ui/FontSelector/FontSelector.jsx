@@ -53,16 +53,34 @@ const FontSelector = ({ selectedFont, onFontSelect }) => {
   const handleTouchEnd = (e) => {
     if (!isDragging) return
     
+    let swipeDetected = false;
+    
     if (e.changedTouches.length > 0) {
       const touchEndX = e.changedTouches[0].clientX
       const deltaX = touchEndX - touchStartXRef.current
       const threshold = 30 // Lower threshold for better mobile UX
 
-      if (Math.abs(deltaX) > threshold) {
+      // Check if touch started on a control element
+      const startedOnControl = e.target.closest('.font-selector__category-btn, .font-selector__nav-arrow, .font-selector__indicator');
+      
+      if (Math.abs(deltaX) > threshold && !startedOnControl) {
+        swipeDetected = true;
         if (deltaX > 0) {
           goToCategory('prev')
         } else {
           goToCategory('next')
+        }
+      } else if (!swipeDetected) {
+        // Handle font selection
+        const touch = e.changedTouches[0]
+        const targetElement = document.elementFromPoint(touch.clientX, touch.clientY)
+        
+        if (targetElement) {
+          const fontItem = targetElement.closest('.font-selector__font')
+          if (fontItem) {
+            const fontId = fontItem.dataset.fontId
+            onFontSelect(fontId)
+          }
         }
       }
     }
@@ -92,6 +110,13 @@ const FontSelector = ({ selectedFont, onFontSelect }) => {
         goToCategory('prev')
       } else {
         goToCategory('next')
+      }
+    } else {
+      // Handle font selection
+      const fontItem = e.target.closest('.font-selector__font')
+      if (fontItem) {
+        const fontId = fontItem.dataset.fontId
+        onFontSelect(fontId)
       }
     }
     
@@ -157,7 +182,7 @@ const FontSelector = ({ selectedFont, onFontSelect }) => {
               key={font.id}
               className={`font-selector__font ${selectedFont === font.id ? "font-selector__font--selected" : ""}`}
               style={{ fontFamily: font.value }}
-              onClick={() => onFontSelect(font.id)}
+              data-font-id={font.id}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
