@@ -20,16 +20,17 @@ const FontSelector = ({ selectedFont, onFontSelect }) => {
     return ReaderPreferenceOptions.fontFamily.filter((font) => font.category === category)
   }
 
+  // Separate handler for touch start to avoid passive event issues
   const handleTouchStart = (e) => {
-    // Prevent default only when necessary
     if (e.touches.length === 1) {
       setTouchStartX(e.touches[0].clientX)
     }
   }
 
+  // Separate handler for touch move with preventDefault
   const handleTouchMove = (e) => {
-    // Only prevent default during swipe gestures
     if (touchStartX && e.touches.length === 1) {
+      // This will be called with passive: false
       e.preventDefault()
     }
   }
@@ -46,21 +47,18 @@ const FontSelector = ({ selectedFont, onFontSelect }) => {
       const currentIndex = categories.indexOf(currentCategory)
 
       if (deltaX > 0 && currentIndex > 0) {
-        // Swipe right - previous category
         setCurrentCategory(categories[currentIndex - 1])
       } else if (deltaX < 0 && currentIndex < categories.length - 1) {
-        // Swipe left - next category
         setCurrentCategory(categories[currentIndex + 1])
       }
 
-      // Reset transition state after animation
       setTimeout(() => setIsTransitioning(false), 300)
     }
 
     setTouchStartX(null)
   }
 
-  // Add mouse event handlers for desktop compatibility
+  // Mouse event handlers for desktop
   const handleMouseDown = (e) => {
     setTouchStartX(e.clientX)
   }

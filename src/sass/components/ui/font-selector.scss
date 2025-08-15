@@ -252,38 +252,49 @@
       }
     }
   }
-  // Add to your font-selector styles
+  // Add these critical fixes for iOS Safari
 .font-selector {
-  // Prevent text selection during swipe
+  // Fix for iOS Safari touch issues
+  -webkit-touch-callout: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
   
-  // Improve touch responsiveness
-  -webkit-tap-highlight-color: transparent;
+  // Hardware acceleration fixes
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
   
   &__container {
-    // Hardware acceleration for smoother animations
+    // Ensure proper touch handling
+    touch-action: pan-y;
+    -webkit-touch-callout: none;
+    
+    // Hardware acceleration for smooth animations
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    
+    // Fix for iOS momentum scrolling
+    -webkit-overflow-scrolling: touch;
     
     &--transitioning {
-      transition: transform 0.3s ease-out;
+      transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+      -webkit-transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
   }
   
   &__font {
-    // Ensure proper touch target size
-    min-height: 60px;
-    
-    // Improve touch feedback
+    // Better touch targets for iOS
+    min-height: 44px;
     cursor: pointer;
+    
+    // Fix for iOS tap highlight
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
     
-    &:focus {
-      outline: 2px solid #007bff;
-      outline-offset: 2px;
+    &:active {
+      opacity: 0.7;
     }
   }
   
@@ -292,16 +303,20 @@
     min-height: 44px;
     min-width: 44px;
     
-    &:focus {
-      outline: 2px solid #007bff;
-      outline-offset: 2px;
+    // Fix for iOS button styling
+    -webkit-appearance: none;
+    border-radius: 0;
+    
+    &:active {
+      opacity: 0.7;
     }
   }
 }
 
-// Fix for iOS Safari
-@media screen and (-webkit-min-device-pixel-ratio: 2) {
+// iOS specific fixes
+@supports (-webkit-touch-callout: none) {
   .font-selector__container {
-    touch-action: pan-y pinch-zoom;
+    // Fix for iOS 13+ passive event listeners
+    touch-action: manipulation;
   }
 }
