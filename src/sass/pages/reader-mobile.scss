@@ -203,14 +203,29 @@
   }
 }
 
-// Smooth page transition effects
+// Smooth page transition effects - FIXED VERSION
 .reader__container__book {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform;
   transform: translateZ(0);
-  
-  &.page-turning {
-    transition: transform 0.3s ease-out;
+  overflow: hidden;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.reader--transitioning {
+  .reader__container__book {
+    opacity: 0.98;
+  }
+}
+
+.reader__container__book {
+  &.page-slide--next {
+    animation: mobilePageFlipNext 400ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+  }
+
+  &.page-slide--prev {
+    animation: mobilePageFlipPrev 400ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
   }
 }
 
@@ -256,4 +271,169 @@
     background: rgba(0, 0, 0, 0.95);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
+}
+
+// Page flip animations
+@keyframes mobilePageFlipNext {
+  0% {
+    transform: translateX(0) rotateY(0deg) scale(1);
+    opacity: 1;
+    filter: blur(0px);
+  }
+  25% {
+    transform: translateX(-10%) rotateY(-3deg) scale(0.98);
+    opacity: 0.95;
+    filter: blur(0.3px);
+  }
+  50% {
+    transform: translateX(-30%) rotateY(-8deg) scale(0.95);
+    opacity: 0.8;
+    filter: blur(0.6px);
+  }
+  75% {
+    transform: translateX(-60%) rotateY(-15deg) scale(0.92);
+    opacity: 0.6;
+    filter: blur(1px);
+  }
+  100% {
+    transform: translateX(-100%) rotateY(-20deg) scale(0.9);
+    opacity: 0;
+    filter: blur(1.5px);
+  }
+}
+
+@keyframes mobilePageFlipPrev {
+  0% {
+    transform: translateX(0) rotateY(0deg) scale(1);
+    opacity: 1;
+    filter: blur(0px);
+  }
+  25% {
+    transform: translateX(10%) rotateY(3deg) scale(0.98);
+    opacity: 0.95;
+    filter: blur(0.3px);
+  }
+  50% {
+    transform: translateX(30%) rotateY(8deg) scale(0.95);
+    opacity: 0.8;
+    filter: blur(0.6px);
+  }
+  75% {
+    transform: translateX(60%) rotateY(15deg) scale(0.92);
+    opacity: 0.6;
+    filter: blur(1px);
+  }
+  100% {
+    transform: translateX(100%) rotateY(20deg) scale(0.9);
+    opacity: 0;
+    filter: blur(1.5px);
+  }
+}
+
+// Reduced motion support
+@media (prefers-reduced-motion: reduce) {
+  .reader__container__book,
+  #book__reader iframe,
+  .reader__container__book.page-slide--next,
+  .reader__container__book.page-slide--prev {
+    transition: none;
+    animation: none;
+    transform: none;
+  }
+}
+/* The container that holds the EPUB iframe */
+.reader__container__book {
+  overflow: hidden;
+  touch-action: pan-y;           /* we handle horizontal swipes ourselves */
+  overscroll-behavior: contain;  /* reduce rubber-banding interference */
+}
+
+/* The element we translate during swipe (iframe wrapper / view) */
+.reader__container__book iframe,
+.reader__container__book .epub-view {
+  will-change: transform;        /* promote to GPU layer early */
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Optional: small visual nudge for button/keyboard nav (not used for finger-drag) */
+#book__reader.page-slide--next,
+#book__reader.page-slide--prev {
+  transition: transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+#book__reader.page-slide--next { transform: translate3d(-12%, 0, 0); }
+#book__reader.page-slide--prev { transform: translate3d( 12%, 0, 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  #book__reader.page-slide--next,
+  #book__reader.page-slide--prev {
+    transition: none;
+    transform: none;
+  }
+}
+
+
+.reader-mobile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.reader__container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 10.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+// Add these styles for the book content
+#book__reader {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: white;
+}
+
+// Navigation buttons
+.reader__container__prev-btn,
+.reader__container__next-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 50px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &__button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+  }
+}
+
+.reader__container__prev-btn {
+  left: 10px;
+}
+
+.reader__container__next-btn {
+  right: 10px;
 }

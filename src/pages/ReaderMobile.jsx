@@ -5,7 +5,8 @@ import { useSearchParams } from "react-router-dom"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import axios from "axios"
-import Epub, { EpubCFI } from "epubjs"
+import Epub from "epubjs"
+import { useDrag } from "@use-gesture/react";
 
 import useDebounce from "../hook/useDebounce"
 
@@ -33,7 +34,6 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaVolumeUp,
-  FaVolumeMute,
 } from "react-icons/fa"
 
 import GaTracker from "../trackers/ga-tracker"
@@ -72,11 +72,14 @@ const ReaderMobilePage = () => {
   const [ShowCustomizerPanel, setShowCustomizerPanel] = useState(false)
   const [ShowTTSPlayer, setShowTTSPlayer] = useState(false)
 
-  const [IsTransitioning, setIsTransitioning] = useState(false)
-  const [TouchStartX, setTouchStartX] = useState(null)
-  const [TouchStartY, setTouchStartY] = useState(null)
-  const [IsSwiping, setIsSwiping] = useState(false)
-  const [IsMobile, setIsMobile] = useState(false)
+  // State for smooth transitions
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Constants for swipe detection
+  const SWIPE_THRESHOLD = 50;
+  const MAX_VERTICAL_SWIPE = 30;
+  const SWIPE_POWER_THRESHOLD = 10000;
 
   const seeking = useRef(false)
   const addAnnotationRef = useRef(null)
@@ -84,6 +87,7 @@ const ReaderMobilePage = () => {
   const resizeTimeoutRef = useRef()
   const bookInstanceRef = useRef(null)
   const debouncedProgress = useDebounce(Progress, 300)
+  const pageCacheRef = useRef(new Map())
 
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [pendingAnnotation, setPendingAnnotation] = useState(null)
@@ -97,22 +101,36 @@ const ReaderMobilePage = () => {
       }
       bookInstanceRef.current = null
     }
+    pageCacheRef.current.clear()
   }, [])
-
 
   useEffect(() => {
     const checkIsMobile = () => {
-      setIsMobile(window.innerWidth <= 768); 
+      const isMobileView = window.innerWidth <= 768 || 
+                         /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(isMobileView);
     };
 
     checkIsMobile();
-
     window.addEventListener('resize', checkIsMobile);
+
+    // Prevent pull-to-refresh and other touch behaviors
+    const preventDefault = (e) => {
+      if (isSwiping && e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove', preventDefault, { passive: false });
+    document.documentElement.style.overscrollBehaviorY = 'none';
 
     return () => {
       window.removeEventListener('resize', checkIsMobile);
+      document.removeEventListener('touchmove', preventDefault);
+      document.documentElement.style.overscrollBehaviorY = '';
     };
-  }, []);
+  }, [isSwiping]);
+
   useEffect(() => {
     if (!Rendition) return
 
@@ -120,7 +138,6 @@ const ReaderMobilePage = () => {
       window.innerWidth <= 768 ||
       /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
         navigator.userAgent,
-
       )
 
     const handleResize = () => {
@@ -138,7 +155,6 @@ const ReaderMobilePage = () => {
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
     }
   }, [Rendition])
-  console.log(IsMobile);
 
   useEffect(() => {
     const handleStorageChange = (e) => {
@@ -150,6 +166,7 @@ const ReaderMobilePage = () => {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+
   useEffect(() => {
     const handleResizeObserverError = (e) => {
       if (e.message === "ResizeObserver loop completed with undelivered notifications.") {
@@ -181,9 +198,8 @@ const ReaderMobilePage = () => {
     [BookMeta],
   )
 
-  const isCurrentPageBookmarked = () => {
+  const isCurrentPageBookmarked = useCallback(() => {
     if (!isUsable(Rendition) || !isUsable(BookMeta) || !BookMeta.id) {
-      console.log('Bookmark check failed: Missing rendition, book meta, or ID');
       return false;
     }
 
@@ -191,33 +207,24 @@ const ReaderMobilePage = () => {
       const bookKey = `${BookMeta.id}:bookmarks`;
       const storedItem = window.localStorage.getItem(bookKey);
 
-      console.log('Checking bookmark for key:', bookKey);
-      console.log('Stored item:', storedItem);
-
       if (!storedItem || storedItem === "") {
-        console.log('No bookmark found for this book');
         return false;
       }
 
       const stored = JSON.parse(storedItem);
       if (!stored || !stored.cfi) {
-        console.log('Invalid bookmark format');
         return false;
       }
 
       const currentLocation = Rendition.currentLocation();
-      console.log('Current location:', currentLocation);
 
       if (!currentLocation || !currentLocation.start) {
-        console.log('No current location available');
         return false;
       }
 
       const currentCFI = currentLocation.start.cfi;
-      console.log('Comparing CFIs - Stored:', stored.cfi, 'Current:', currentCFI);
 
       if (stored.cfi === currentCFI) {
-        console.log('EXACT MATCH: Page is bookmarked!');
         return true;
       }
 
@@ -225,22 +232,19 @@ const ReaderMobilePage = () => {
       const currentBase = currentCFI.split('!')[0];
 
       if (storedBase === currentBase) {
-        console.log('BASE MATCH: Likely same page/chapter');
         return true;
       }
 
-      console.log('NO MATCH: Page is not bookmarked');
       return false;
     } catch (err) {
-      console.warn("Error checking bookmark status:", err);
       return false;
     }
-  }
+  }, [Rendition, BookMeta]);
 
-  const updateBookmarkedStatus = () => {
+  const updateBookmarkedStatus = useCallback(() => {
     const PageBookmarked = isCurrentPageBookmarked()
     setPageBookmarked(PageBookmarked)
-  }
+  }, [isCurrentPageBookmarked])
 
   const hideAllPanel = useCallback(({ customizer = true, annotation = true, toc = true, tts = true } = {}) => {
     customizer && setShowCustomizerPanel(false)
@@ -256,108 +260,22 @@ const ReaderMobilePage = () => {
     }
   }
 
-const navigatePage = useCallback((direction) => {
-  if (!Rendition) return;
-
-  // Add smooth transition class
-  setIsTransitioning(true);
-  
-  const transitionPromise = direction === 'next' 
-    ? Rendition.next({ transition: 'slide', duration: 250 })
-    : Rendition.prev({ transition: 'slide', duration: 250 });
-
-  // Reset transitioning state after animation
-  setTimeout(() => {
-    setIsTransitioning(false);
-  }, 300);
-
-  return transitionPromise;
-}, [Rendition]);
-useEffect(() => {
-  if (!Rendition) return;
-
-  let touchStartX = 0;
-  let touchStartY = 0;
-  let isSwiping = false;
-
-  const handleTouchStart = (e) => {
-    if (e.touches.length !== 1) return;
-    
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-    
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    isSwiping = false;
-  };
-
-  const handleTouchMove = (e) => {
-    if (!touchStartX || !touchStartY) return;
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-
-    const touchX = e.touches[0].clientX;
-    const touchY = e.touches[0].clientY;
-    const deltaX = touchX - touchStartX;
-    const deltaY = touchY - touchStartY;
-
-    // Only consider it a swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
-      isSwiping = true;
-      e.preventDefault(); // Prevent scrolling during swipe
-    }
-  };
-
-  const handleTouchEnd = (e) => {
-    if (!isSwiping || !touchStartX) {
-      touchStartX = 0;
-      touchStartY = 0;
-      isSwiping = false;
-      return;
-    }
-
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
-      touchStartX = 0;
-      touchStartY = 0;
-      isSwiping = false;
-      return;
-    }
-
-    const touchX = e.changedTouches[0].clientX;
-    const deltaX = touchX - touchStartX;
-    const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
-
-    if (Math.abs(deltaX) > swipeThreshold) {
-      if (deltaX > 0) {
-        // Swipe right - go to previous page
-        navigatePage("prev");
-      } else {
-        // Swipe left - go to next page
-        navigatePage("next");
+  const navigatePage = useCallback(
+    (direction) => {
+      if (!isUsable(Rendition)) return
+      if (direction === "next") {
+        Rendition.next().catch((err) => {
+          console.warn("Error navigating to next page:", err)
+        })
+      } else if (direction === "prev") {
+        Rendition.prev().catch((err) => {
+          console.warn("Error navigating to previous page:", err)
+        })
       }
-    }
+    },
+    [Rendition]
 
-    touchStartX = 0;
-    touchStartY = 0;
-    isSwiping = false;
-  };
-
-  // Attach touch events to the book reader container
-  const bookReader = document.getElementById('book__reader');
-  if (bookReader) {
-    bookReader.addEventListener('touchstart', handleTouchStart, { passive: false });
-    bookReader.addEventListener('touchmove', handleTouchMove, { passive: false });
-    bookReader.addEventListener('touchend', handleTouchEnd, { passive: true });
-  }
-
-  return () => {
-    if (bookReader) {
-      bookReader.removeEventListener('touchstart', handleTouchStart);
-      bookReader.removeEventListener('touchmove', handleTouchMove);
-      bookReader.removeEventListener('touchend', handleTouchEnd);
-    }
-  };
-}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
-
+  );
 
   const openFullscreen = useCallback(() => {
     const elem = document.documentElement
@@ -374,6 +292,7 @@ useEffect(() => {
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen()
     else if (document.msExitFullscreen) document.msExitFullscreen()
   }, [])
+
   const addBookMark = useCallback(() => {
     GaTracker("event_bookmarkpanel_bookmark")
     if (isUsable(BookMeta) && isUsable(WalletAddress)) {
@@ -381,10 +300,8 @@ useEffect(() => {
       if (!isUsable(BookMeta) || !BookMeta.id) return
 
       const currentLocation = Rendition.currentLocation()
-      console.log('Adding bookmark - Current location:', currentLocation)
 
       if (!currentLocation || !currentLocation.start) {
-        console.log('No current location available for bookmarking')
         return
       }
 
@@ -393,16 +310,12 @@ useEffect(() => {
         cfi: currentLocation.start.cfi,
         percent: currentLocation.start.percentage,
       }
-      console.log('Adding bookmark - New bookmark data:', newBookmark)
-      console.log('Book ID for saving:', BookMeta.id)
-      console.log('Wallet Address:', WalletAddress)
-
+   
       if (Preview) {
         console.log('Preview mode: Saving bookmark locally only')
         try {
           const bookKey = `${BookMeta.id}:bookmarks`
           localStorage.setItem(bookKey, JSON.stringify(newBookmark))
-          console.log('✅ Bookmark saved locally in preview mode')
           updateBookmarkedStatus()
         } catch (err) {
           console.error("❌ Error saving bookmark locally:", err)
@@ -422,12 +335,10 @@ useEffect(() => {
         },
       })
         .then((res) => {
-          console.log('API Response:', res)
           if (res.status === 200) {
             const bookKey = `${BookMeta.id}:bookmarks`
             localStorage.setItem(bookKey, JSON.stringify(newBookmark))
-            console.log(' with key:', bookKey)
-            console.log('Saved bookmark data:', newBookmark)
+      
             updateBookmarkedStatus()
           } else {
             console.log(res.status)
@@ -437,7 +348,6 @@ useEffect(() => {
           try {
             const bookKey = `${BookMeta.id}:bookmarks`
             localStorage.setItem(bookKey, JSON.stringify(newBookmark))
-            console.log('API error')
             updateBookmarkedStatus()
           } catch (localErr) {
             console.error(localErr)
@@ -447,16 +357,13 @@ useEffect(() => {
     } else {
       console.log(' BookMeta:', BookMeta, 'WalletAddress:', WalletAddress)
     }
-  }, [Preview, BookMeta, WalletAddress, Rendition])
+  }, [Preview, BookMeta, WalletAddress, Rendition, updateBookmarkedStatus])
 
   const removeBookMark = useCallback(() => {
     GaTracker("event_bookmarkpanel_bookmark_remove")
     if (isUsable(BookMeta) && isUsable(WalletAddress)) {
       if (!isUsable(Rendition)) return
       if (!isUsable(BookMeta) || !BookMeta.id) return
-
-      console.log('Removing bookmark for book:', BookMeta.id)
-      console.log('Wallet Address:', WalletAddress)
 
       if (Preview) {
         console.log('Preview mode: Removing bookmark locally only')
@@ -483,23 +390,18 @@ useEffect(() => {
         },
       })
         .then((res) => {
-          console.log('Remove bookmark API Response:', res)
           if (res.status === 200) {
             const bookKey = `${BookMeta.id}:bookmarks`
             localStorage.setItem(bookKey, "")
-            console.log('removed from localStorage')
             updateBookmarkedStatus()
           } else {
             console.log('non-200 status:', res.status)
           }
         })
         .catch((err) => {
-          console.error(" API:", err)
-          // Even if API fails, try to remove locally
           try {
             const bookKey = `${BookMeta.id}:bookmarks`
             localStorage.setItem(bookKey, "")
-            console.log(' despite API error')
             updateBookmarkedStatus()
           } catch (localErr) {
             console.error(localErr)
@@ -509,15 +411,14 @@ useEffect(() => {
     } else {
       console.log(BookMeta, 'WalletAddress:', WalletAddress)
     }
-  }, [Preview, BookMeta, WalletAddress, Rendition])
+  }, [Preview, BookMeta, WalletAddress, Rendition, updateBookmarkedStatus])
+
   const toggleBookMark = useCallback(() => {
-    // Call the direct function, not useCallback version
     const isCurrentlyBookmarked = isCurrentPageBookmarked()
     if (isCurrentlyBookmarked === true) removeBookMark()
     else addBookMark()
-  }, [removeBookMark, addBookMark])
+  }, [removeBookMark, addBookMark, isCurrentPageBookmarked])
 
-  // Initialize book data from URL params
   useEffect(() => {
     const bookPreview = searchParams.get("bkpw")
     const bookTitle = searchParams.get("bkte")
@@ -584,12 +485,11 @@ useEffect(() => {
     else dispatch(hideSpinner())
   }, [Loading, dispatch])
 
-  // Hide panels when UI changes
   useEffect(() => {
     hideAllPanel()
   }, [ShowUI, hideAllPanel])
 
-  // Load and initialize book
+  // Enhanced book rendering with content sanitization
   useEffect(() => {
     if (!IsReady || !BookMeta || !BookUrl) return
 
@@ -602,11 +502,15 @@ useEffect(() => {
     let renditionInstance = null
     const attachedDocs = new WeakSet()
 
-    // Cleanup previous book instance
     cleanupBook()
 
     try {
-      const book = Epub(bookURL, { openAs: "epub" })
+      // Enhanced book initialization with better error handling
+      const book = Epub(bookURL, { 
+        openAs: "epub",
+        requestCredentials: false,
+        canonical: (uri) => uri.replace(/file:\/\/.*?epub\//, "")
+      })
       bookInstanceRef.current = book
 
       book.ready
@@ -614,132 +518,201 @@ useEffect(() => {
           const elm = document.querySelector("#book__reader")
           if (elm) elm.innerHTML = ""
 
+          // Optimized rendition settings for mobile
           const rendition = book.renderTo("book__reader", {
             width: "100%",
             height: "100%",
-            manager: "default",
+            manager: "continuous",
             flow: "paginated",
             snap: true,
-            gap: 40,
-            allowScriptedContent: true,
-            sandbox: ["allow-scripts", "allow-same-origin", "allow-modals"] // Remove restrictive sandboxing
-
+            gap: "30px",
+            allowScriptedContent: false,
+            sandbox: ["allow-same-origin"],
+            method: "blobUrl"
           })
 
-          rendition.themes.default(ReaderBaseTheme)
+          // Apply base theme with fallback fonts
+          rendition.themes.default({
+            ...ReaderBaseTheme,
+            body: {
+              ...ReaderBaseTheme.body,
+              fontFamily: "Georgia, serif",
+              "-webkit-font-smoothing": "antialiased",
+              "-moz-osx-font-smoothing": "grayscale"
+            }
+          })
+
           const isMobileViewport = () =>
             window.innerWidth <= 768 ||
             /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
           rendition.spread(isMobileViewport() ? "none" : "both")
+          
+          // Generate locations with optimized chunk size
           if (!book.locations || !book.locations.length()) {
-            await book.locations.generate(1024)
-            console.log("Total locations generated:", book.locations.total)
+            await book.locations.generate(1600)
           }
           window.__bookLocations = book.locations
+
+          // Enhanced content sanitization
+          rendition.hooks.content.register((contents) => {
+            const doc = contents.document;
+            
+            // Remove problematic elements
+            const scripts = doc.querySelectorAll('script');
+            scripts.forEach(script => script.remove());
+            
+            const iframes = doc.querySelectorAll('iframe');
+            iframes.forEach(iframe => {
+              iframe.style.border = 'none';
+              iframe.style.width = '100%';
+            });
+            
+            // Apply global styles to prevent rendering issues
+            const style = doc.createElement('style');
+            style.textContent = `
+              * {
+                box-sizing: border-box;
+                -webkit-tap-highlight-color: transparent;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                font-family: Georgia, serif;
+                font-size: 16px;
+                line-height: 1.6;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+              }
+              p {
+                margin: 0 0 1em 0;
+              }
+              img {
+                max-width: 100%;
+                height: auto;
+              }
+            `;
+            doc.head.appendChild(style);
+          });
 
           await rendition.display()
 
           renditionInstance = rendition
           setRendition(rendition)
-const attachSwipeToDoc = (content) => {
-  if (!content?.document || attachedDocs.has(content.document)) return
-  attachedDocs.add(content.document)
+          
+          // Enhanced swipe handling with better performance
+          const attachSwipeToDoc = (content) => {
+            if (!content?.document || attachedDocs.has(content.document)) return;
+            attachedDocs.add(content.document);
 
-  const iframe = content.document.defaultView?.frameElement?.parentElement
-  if (!iframe) return
+            const iframe = content.document.defaultView?.frameElement?.parentElement;
+            if (!iframe) return;
 
-  let startX = 0, startY = 0, deltaX = 0
-  let lastX = 0, lastT = 0, velocity = 0
-  let isDragging = false, rafId = null
+            let startX = 0;
+            let startY = 0;
+            let deltaX = 0;
+            let isDragging = false;
+            let rafId = null;
 
-  const threshold = Math.min(window.innerWidth * 0.18, 90)
+            const threshold = Math.min(window.innerWidth * 0.1, 60);
 
-  const setTransform = (x) => {
-    if (rafId) cancelAnimationFrame(rafId)
-    rafId = requestAnimationFrame(() => {
-      iframe.style.transform = `translate3d(${x}px, 0, 0)`
-    })
-  }
+            const setTransform = (x) => {
+              if (rafId) cancelAnimationFrame(rafId);
+              rafId = requestAnimationFrame(() => {
+                iframe.style.transform = `translate3d(${x}px, 0, 0)`;
+                iframe.style.willChange = 'transform';
+              });
+            };
 
-  const resetTransform = (animate = true) => {
-    iframe.style.transition = animate ? "transform 280ms cubic-bezier(0.25, 0.8, 0.25, 1)" : "none"
-    iframe.style.transform = "translate3d(0, 0, 0)"
-  }
+            const resetTransform = (animate = true) => {
+              if (rafId) cancelAnimationFrame(rafId);
+              iframe.style.willChange = 'auto';
+              iframe.style.transition = animate ? "transform 250ms cubic-bezier(0.25, 0.1, 0.25, 1)" : "none";
+              iframe.style.transform = "translate3d(0, 0, 0)";
+            };
 
-  const touchStart = (e) => {
-    if (e.touches.length !== 1) return
-    startX = lastX = e.touches[0].clientX
-    startY = e.touches[0].clientY
-    deltaX = 0
-    velocity = 0
-    isDragging = false
-    lastT = e.timeStamp
-    iframe.style.transition = "none"
-  }
+            const touchStart = (e) => {
+              if (e.touches.length !== 1) return;
+              if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-  const touchMove = (e) => {
-    if (e.touches.length !== 1) return
-    const x = e.touches[0].clientX
-    const y = e.touches[0].clientY
-    const dx = x - startX
-    const dy = y - startY
+              startX = e.touches[0].clientX;
+              startY = e.touches[0].clientY;
+              deltaX = 0;
+              isDragging = false;
+              iframe.style.transition = "none";
+              iframe.style.willChange = 'transform';
+            };
 
-    if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
-      isDragging = true
-      setIsSwiping(true)
-    }
-    if (!isDragging) return
+            const touchMove = (e) => {
+              if (e.touches.length !== 1) return;
+              if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer || ShowContextMenu) return;
 
-    e.preventDefault()
-    deltaX = dx
+              const x = e.touches[0].clientX;
+              const y = e.touches[0].clientY;
+              const dx = x - startX;
+              const dy = y - startY;
 
-    const dt = Math.max(1, e.timeStamp - lastT)
-    velocity = (x - lastX) / dt // px per ms
-    lastX = x
-    lastT = e.timeStamp
+              // More sensitive detection for slow movements
+              if (!isDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 2) {
+                isDragging = true;
+                setIsSwiping(true);
+                e.preventDefault();
+              }
 
-    setTransform(deltaX)
-  }
+              if (!isDragging) return;
 
-  const touchEnd = () => {
-    if (!isDragging) {
-      resetTransform()
-      return
-    }
-    const distance = Math.abs(deltaX)
-    const speed = Math.abs(velocity)
-    const passed = distance > threshold || speed > 0.35
+              deltaX = dx;
+              setTransform(deltaX);
+            };
 
-    const base = 260
-    const duration = Math.min(420, Math.max(200, base + (distance / window.innerWidth) * 180))
-    const easing = "cubic-bezier(0.25, 0.8, 0.25, 1)"
+            const touchEnd = () => {
+              if (!isDragging) {
+                resetTransform();
+                setIsSwiping(false);
+                return;
+              }
 
-    if (passed) {
-      iframe.style.transition = `transform ${duration}ms ${easing}`
-      iframe.style.transform = `translate3d(${deltaX < 0 ? -window.innerWidth : window.innerWidth}px, 0, 0)`
-      setTimeout(() => {
-        deltaX < 0 ? renditionInstance.next() : renditionInstance.prev()
-        resetTransform(false)
-      }, duration)
-    } else {
-      resetTransform()
-    }
-    isDragging = false
-    setIsSwiping(false)
-  }
+              const distance = Math.abs(deltaX);
+              const passed = distance > threshold;
 
-  content.document.addEventListener("touchstart", touchStart, { passive: true })
-  content.document.addEventListener("touchmove",  touchMove,  { passive: false })
-  content.document.addEventListener("touchend",   touchEnd,   { passive: true })
-}
+              if (passed && renditionInstance) {
+                const direction = deltaX < 0 ? 'next' : 'prev';
+                const targetX = direction === 'next' ? -window.innerWidth * 0.8 : window.innerWidth * 0.8;
+                
+                // Smooth page turn animation
+                iframe.style.transition = "transform 250ms cubic-bezier(0.25, 0.1, 0.25, 1)";
+                iframe.style.transform = `translate3d(${targetX}px, 0, 0)`;
+                
+                setTimeout(async () => {
+                  try {
+                    if (direction === 'next') {
+                      await renditionInstance.next();
+                    } else {
+                      await renditionInstance.prev();
+                    }
+                  } catch (err) {
+                    console.warn('Navigation error:', err);
+                  }
+                  resetTransform(false);
+                  setIsSwiping(false);
+                }, 250);
+              } else {
+                resetTransform();
+                setIsSwiping(false);
+              }
 
+              isDragging = false;
+            };
+
+            content.document.addEventListener("touchstart", touchStart, { passive: true });
+            content.document.addEventListener("touchmove", touchMove, { passive: false });
+            content.document.addEventListener("touchend", touchEnd, { passive: true });
+          };
 
           rendition.getContents().forEach(attachSwipeToDoc)
           rendition.on("rendered", (_section, content) => {
             attachSwipeToDoc(content)
           })
-
 
           rendition.on("selected", (cfiRange, contents) => {
             try {
@@ -749,15 +722,6 @@ const attachSwipeToDoc = (content) => {
 
               const range = selection.getRangeAt(0)
               const rect = range.getBoundingClientRect()
-
-              console.log("=== TEXT SELECTION DEBUG ===")
-              console.log("Selected text:", selectedText)
-              console.log("CFI Range:", cfiRange)
-              console.log("Rect position:", rect)
-              console.log("Context menu position state will be set to:", {
-                x: rect.left + rect.width / 2,
-                y: rect.top - 10,
-              })
 
               setContextMenuPosition({
                 x: rect.left + rect.width / 2,
@@ -777,10 +741,12 @@ const attachSwipeToDoc = (content) => {
           setLoading(false)
         })
         .catch((err) => {
+          console.error('Book loading error:', err);
           setIsErrored(true)
           setLoading(false)
         })
     } catch (err) {
+      console.error('Book initialization error:', err);
       setIsErrored(true)
       setLoading(false)
     }
@@ -852,7 +818,6 @@ const attachSwipeToDoc = (content) => {
 
         const navItem = Rendition.book.navigation.get(spineItem.href)
         setChapterName(navItem?.label?.trim() || "")
-        console.log("Chapter name updated:", navItem?.label?.trim());
 
       } catch (err) {
         console.warn("Error updating chapter name:", err)
@@ -885,16 +850,16 @@ const attachSwipeToDoc = (content) => {
     }
 
     const handleClick = (e) => {
-      if (IsSwiping || ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return
+      if (isSwiping || ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return
       setShowUI((s) => !s)
     }
 
     const handleKeyUp = (e) => {
       if (e.key === "ArrowLeft" || (e.keyCode || e.which) === 37) {
-        navigatePage("prev", false)
+        navigatePage("prev")
       }
       if (e.key === "ArrowRight" || (e.keyCode || e.which) === 39) {
-        navigatePage("next", false)
+        navigatePage("next")
       }
     }
 
@@ -915,7 +880,7 @@ const attachSwipeToDoc = (content) => {
     updateBookmarkedStatus,
     saveLastReadPage,
     setCurrentLocationCFI,
-    IsSwiping,
+    isSwiping,
     navigatePage,
     ShowTocPanel,
     ShowAnnotationPanel,
@@ -923,7 +888,6 @@ const attachSwipeToDoc = (content) => {
     ShowTTSPlayer,
   ])
 
-  // Progress seeking
   useEffect(() => {
     if (!IsReady || !Rendition || !seeking.current) return
 
@@ -958,7 +922,7 @@ const attachSwipeToDoc = (content) => {
           const locationsArray = JSON.parse(stored)
           setTotalLocations(Array.isArray(locationsArray) ? locationsArray.length : 0)
         } else {
-          await Rendition.book.locations.generate(1024)
+          await Rendition.book.locations.generate(1600)
           setTotalLocations(Rendition.book.locations.total)
           localStorage.setItem(bookKey, Rendition.book.locations.save())
         }
@@ -994,92 +958,6 @@ const attachSwipeToDoc = (content) => {
     return () => window.removeEventListener("scroll", hideMenu)
   }, [])
 
-// ADD THIS NEW USEEFFECT INSTEAD
-useEffect(() => {
-  if (!Rendition) return;
-
-  let touchStartX = 0;
-  let touchStartY = 0;
-  let isSwiping = false;
-
-  const handleTouchStart = (e) => {
-    if (e.touches.length !== 1) return;
-    
-    // Don't interfere with panels
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-    
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    isSwiping = false;
-  };
-
-  const handleTouchMove = (e) => {
-    if (!touchStartX || !touchStartY) return;
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) return;
-
-    const touchX = e.touches[0].clientX;
-    const touchY = e.touches[0].clientY;
-    const deltaX = touchX - touchStartX;
-    const deltaY = touchY - touchStartY;
-
-    // Only consider it a swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
-      isSwiping = true;
-      e.preventDefault(); // Prevent scrolling during swipe
-    }
-  };
-
-  const handleTouchEnd = (e) => {
-    if (!isSwiping || !touchStartX) {
-      touchStartX = 0;
-      touchStartY = 0;
-      isSwiping = false;
-      return;
-    }
-
-    if (ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) {
-      touchStartX = 0;
-      touchStartY = 0;
-      isSwiping = false;
-      return;
-    }
-
-    const touchX = e.changedTouches[0].clientX;
-    const deltaX = touchX - touchStartX;
-    const swipeThreshold = window.innerWidth * 0.15; // 15% of screen width
-
-    if (Math.abs(deltaX) > swipeThreshold) {
-      if (deltaX > 0) {
-        // Swipe right - go to previous page
-        navigatePage("prev");
-      } else {
-        // Swipe left - go to next page
-        navigatePage("next");
-      }
-    }
-
-    touchStartX = 0;
-    touchStartY = 0;
-    isSwiping = false;
-  };
-
-  // Attach touch events to the book reader container
-  const bookReader = document.getElementById('book__reader');
-  if (bookReader) {
-    bookReader.addEventListener('touchstart', handleTouchStart, { passive: false });
-    bookReader.addEventListener('touchmove', handleTouchMove, { passive: false });
-    bookReader.addEventListener('touchend', handleTouchEnd, { passive: true });
-  }
-
-  return () => {
-    if (bookReader) {
-      bookReader.removeEventListener('touchstart', handleTouchStart);
-      bookReader.removeEventListener('touchmove', handleTouchMove);
-      bookReader.removeEventListener('touchend', handleTouchEnd);
-    }
-  };
-}, [Rendition, ShowTocPanel, ShowAnnotationPanel, ShowCustomizerPanel, ShowTTSPlayer, navigatePage]);
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       cleanupBook()
@@ -1095,7 +973,6 @@ useEffect(() => {
     const updateBookmarkStatus = () => {
       setTimeout(() => {
         const isBookmarked = isCurrentPageBookmarked()
-        console.log('Bookmark status updated:', isBookmarked)
         setPageBookmarked(isBookmarked)
       }, 100)
     }
@@ -1111,7 +988,8 @@ useEffect(() => {
         Rendition.off('rendered', updateBookmarkStatus)
       }
     }
-  }, [Rendition, BookMeta?.id])
+  }, [Rendition, BookMeta?.id, isCurrentPageBookmarked])
+
   if (IsErrored) {
     return (
       <div className="reader reader--error">
@@ -1129,117 +1007,109 @@ useEffect(() => {
 
   return (
     <div
-      className={`reader ${IsTransitioning ? "reader--transitioning" : ""} ${IsMobile ? "reader--mobile" : "reader--desktop"}`}
+      className={`reader ${isSwiping ? "reader--transitioning" : ""} ${isMobile ? "reader--mobile" : "reader--desktop"}`}
     >
-<div className={`reader__header 
+      <div className={`reader__header 
   ${ShowUI ? "reader__header--show" : ""} 
   ${(ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) ? "reader__header--hidden" : ""}`}
->
-  <div className="reader__header__left">
-    <div className="reader__header__left__timer">
-      {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
-    </div>
-  </div>
-  
-  <div className="reader__header__center">
-    <div className="typo__body--2 typo__color--n700 typo__transform--capital">
-      {BookMeta.title || "Untitled"}
-    </div>
-  </div>
-  
-  <div className="reader__header__right">
-    <div className="reader__header__right__scroll-container">
-      <Button
-        className="reader__header__right__hide-on-mobile"
-        type="icon"
-        onClick={() => setFullscreen((s) => !s)}
-        aria-label={Fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       >
-        {Fullscreen ? <FaCompress /> : <FaExpand />}
-      </Button>
-      <Button
-        type="icon"
-        className={ShowTocPanel ? "reader__header__right__button--active" : ""}
-        onClick={() => {
-          hideAllPanel({ toc: false })
-          setShowTocPanel((s) => !s)
-        }}
-        aria-label="Table of contents"
-      >
-        <FaList />
-      </Button>
-      <Button
-        type="icon"
-        className={ShowAnnotationPanel ? "reader__header__right__button--active" : ""}
-        onClick={() => {
-          hideAllPanel({ annotation: false })
-          setShowAnnotationPanel((s) => !s)
-        }}
-        aria-label="Annotations"
-      >
-        <FaQuoteLeft />
-      </Button>
-      <Button
-        type="icon"
-        className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
-        onClick={toggleBookMark}
-        aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
-      >
-        <FaBookmark />
-        {PageBookmarked && (
-          <span className="bookmark-indicator-dot"></span>
-        )}
-      </Button>
-      <Button
-        type="icon"
-        className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
-        onClick={() => {
-          hideAllPanel({ customizer: false })
-          setShowCustomizerPanel((s) => !s)
-        }}
-        aria-label="Text settings"
-      >
-        <FaFont />
-      </Button>
-      <Button
-        type="icon"
-        className={ShowTTSPlayer ? "reader__header__right__button--active" : ""}
-        onClick={() => {
-          hideAllPanel({ tts: false })
-          setShowTTSPlayer((s) => !s)
-        }}
-        aria-label="Text to speech"
-      >
-        <FaVolumeUp />
-      </Button>
-    </div>
-  </div>
-</div>
-      <div className="reader__container" ref={readerContainerRef}>
-        <div
-          className={
-            PageBookmarked
-              ? ""
-              : "reader__container__bookmark"
-          }
-        ></div>
+        <div className="reader__header__left">
+          <div className="reader__header__left__timer">
+            {Rendition && <ReadTimer mobileView={true} preview={Preview} bookMeta={BookMeta} />}
+          </div>
+        </div>
 
+        <div className="reader__header__center">
+          <div className="typo__body--2 typo__color--n700 typo__transform--capital">
+            {BookMeta.title || "Untitled"}
+          </div>
+        </div>
+
+        <div className="reader__header__right">
+          <div className="reader__header__right__scroll-container">
+            <Button
+              className="reader__header__right__hide-on-mobile"
+              type="icon"
+              onClick={() => setFullscreen((s) => !s)}
+              aria-label={Fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {Fullscreen ? <FaCompress /> : <FaExpand />}
+            </Button>
+            <Button
+              type="icon"
+              className={ShowTocPanel ? "reader__header__right__button--active" : ""}
+              onClick={() => {
+                hideAllPanel({ toc: false })
+                setShowTocPanel((s) => !s)
+              }}
+              aria-label="Table of contents"
+            >
+              <FaList />
+            </Button>
+            <Button
+              type="icon"
+              className={ShowAnnotationPanel ? "reader__header__right__button--active" : ""}
+              onClick={() => {
+                hideAllPanel({ annotation: false })
+                setShowAnnotationPanel((s) => !s)
+              }}
+              aria-label="Annotations"
+            >
+              <FaQuoteLeft />
+            </Button>
+            <Button
+              type="icon"
+              className={`${PageBookmarked ? "reader__header__right__button--active" : ""} ${PageBookmarked ? "reader__header__right__button--bookmarked" : ""}`}
+              onClick={toggleBookMark}
+              aria-label={PageBookmarked ? "Remove bookmark" : "Add bookmark"}
+            >
+              <FaBookmark />
+              {PageBookmarked && (
+                <span className="bookmark-indicator-dot"></span>
+              )}
+            </Button>
+            <Button
+              type="icon"
+              className={ShowCustomizerPanel ? "reader__header__right__button--active" : ""}
+              onClick={() => {
+                hideAllPanel({ customizer: false })
+                setShowCustomizerPanel((s) => !s)
+              }}
+              aria-label="Text settings"
+            >
+              <FaFont />
+            </Button>
+            <Button
+              type="icon"
+              className={ShowTTSPlayer ? "reader__header__right__button--active" : ""}
+              onClick={() => {
+                hideAllPanel({ tts: false })
+                setShowTTSPlayer((s) => !s)
+              }}
+              aria-label="Text to speech"
+            >
+              <FaVolumeUp />
+            </Button>
+          </div>
+        </div>
+      </div>
+      <div className="reader__container" ref={readerContainerRef}>
         <div className="reader__container__prev-btn">
           <div
             className="reader__container__prev-btn__button"
-            onClick={() => navigatePage("prev", false)}
+            onClick={() => navigatePage("prev")}
             aria-label="Previous page"
           >
             <FaChevronLeft width={32} />
           </div>
         </div>
 
-        <div id="book__reader" className="reader__container__book"></div>
+        <div id="book__reader" className=""></div>
 
-        <div className="reader__container__next-btn">
+        <div className="">
           <div
             className="reader__container__next-btn__button"
-            onClick={() => navigatePage("next", false)}
+            onClick={() => navigatePage("next")}
             aria-label="Next page"
           >
             <FaChevronRight width={32} />
@@ -1251,8 +1121,6 @@ useEffect(() => {
             <AnnotationContextMenu
               position={contextMenuPosition}
               onAddAnnotation={(color) => {
-                console.log("Color selected:", color);
-                console.log("Pending annotation:", pendingAnnotation);
                 if (pendingAnnotation && addAnnotationRef.current) {
                   addAnnotationRef.current({
                     cfiRange: pendingAnnotation.cfiRange,
@@ -1267,69 +1135,69 @@ useEffect(() => {
           </div>
         )}
 
-<SidePanel 
-  show={ShowTocPanel} 
-  setShow={setShowTocPanel} 
-  position="right"
->
-  <TocPanel
-    onSelect={() => {
-      hideAllPanel({ toc: false })
-      setShowTocPanel(false)
-    }}
-    rendition={Rendition}
-  />
-</SidePanel>
+        <SidePanel
+          show={ShowTocPanel}
+          setShow={setShowTocPanel}
+          position="right"
+        >
+          <TocPanel
+            onSelect={() => {
+              hideAllPanel({ toc: false })
+              setShowTocPanel(false)
+            }}
+            rendition={Rendition}
+          />
+        </SidePanel>
 
-<SidePanel 
-  show={ShowAnnotationPanel} 
-  setShow={setShowAnnotationPanel} 
-  position="right"
->
-  <AnnotationPanel
-    mobileView={true}
-    preview={Preview}
-    rendition={Rendition}
-    bookMeta={BookMeta}
-    show={ShowAnnotationPanel}
-    addAnnotationRef={addAnnotationRef}
-    hideModal={() => {
-      setShowAnnotationPanel(false)
-    }}
-    onRemove={() => {
-      setShowAnnotationPanel(false)
-    }}
-  />
-</SidePanel>
+        <SidePanel
+          show={ShowAnnotationPanel}
+          setShow={setShowAnnotationPanel}
+          position="right"
+        >
+          <AnnotationPanel
+            mobileView={true}
+            preview={Preview}
+            rendition={Rendition}
+            bookMeta={BookMeta}
+            show={ShowAnnotationPanel}
+            addAnnotationRef={addAnnotationRef}
+            hideModal={() => {
+              setShowAnnotationPanel(false)
+            }}
+            onRemove={() => {
+              setShowAnnotationPanel(false)
+            }}
+          />
+        </SidePanel>
 
-<SidePanel
-  show={ShowCustomizerPanel}
-  setShow={setShowCustomizerPanel}
-  position="right-bottom"
-  className="sidepanel--customizer"  // Only this prop needed
->
-  <Customizer initialFontSize={100} rendition={Rendition} />
-</SidePanel>
+        <SidePanel
+          show={ShowCustomizerPanel}
+          setShow={setShowCustomizerPanel}
+          position="right-bottom"
+          className="sidepanel--customizer"
+        >
+          <Customizer initialFontSize={100} rendition={Rendition} />
+        </SidePanel>
       </div>
 
-{ShowUI && !(ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) && (
-  <nav className="reader__nav reader__nav--show">
-    <div className="reader__nav__value">
-      <div className="reader__nav__value__chapter-title typo__gray--n600 typo__transform--capital">
-        {ChapterName || BookMeta.title || ""}
-      </div>
-      <div>{Math.floor((debouncedProgress * 100) / (TotalLocations || 1)) || "0"}%</div>
-    </div>
-    <div className="reader__nav__progress">
-      <RangeSlider
-        value={Progress}
-        onChange={handlePageUpdate}
-        max={TotalLocations || 100}
-        className="reader__nav__progress"
-      />
-    </div>
-  </nav>
-)}
+      {ShowUI && !(ShowTocPanel || ShowAnnotationPanel || ShowCustomizerPanel || ShowTTSPlayer) && (
+        <nav className="reader__nav reader__nav--show">
+          <div className="reader__nav__value">
+            <div className="reader__nav__value__chapter-title typo__gray--n600 typo__transform--capital">
+              {ChapterName || BookMeta.title || ""}
+            </div>
+            <div>{Math.floor((debouncedProgress * 100) / (TotalLocations || 1)) || "0"}%</div>
+          </div>
+          <div className="reader__nav__progress">
+            <RangeSlider
+              value={Progress}
+              onChange={handlePageUpdate}
+              max={TotalLocations || 100}
+              className="reader__nav__progress"
+            />
+          </div>
+        </nav>
+      )}
 
       <TextToSpeechPlayer
         rendition={Rendition}
@@ -1340,4 +1208,4 @@ useEffect(() => {
   )
 }
 
-export default ReaderMobilePage
+export default ReaderMobilePage;
