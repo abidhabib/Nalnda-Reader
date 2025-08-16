@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import axios from "axios"
 import Epub from "epubjs"
-import { useDrag } from "@use-gesture/react";
 
 import useDebounce from "../hook/useDebounce"
 
