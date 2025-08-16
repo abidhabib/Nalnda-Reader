@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useEffect, useRef } from "react"
+import { useMemo, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { FaHighlighter, FaTimes } from "react-icons/fa"
 import "../../../sass/components/ui/annotation-context-menu.scss"
@@ -17,96 +17,106 @@ const AnnotationContextMenu = ({ position, onAddAnnotation, onClose, visible = t
     []
   )
 
-  // iOS detection
-  const isIOS = useMemo(() => {
-    return typeof navigator !== 'undefined' && 
-           /iPad|iPhone|iPod/.test(navigator.userAgent) && 
-           !window.MSStream;
+  const [finalPosition, setFinalPosition] = useState(position)
+  const menuRef = useRef(null)
+  
+  // Enhanced Safari detection including iOS
+  const isSafari = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    
+    const ua = navigator.userAgent;
+    return (
+      /^((?!chrome|android).)*safari/i.test(ua) ||
+      /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    );
   }, [])
-
-  // Track if the menu has been shown to iOS
-  const hasBeenShownRef = useRef(false)
 
   // Handle escape key
   useEffect(() => {
-    if (typeof document === "undefined" || !visible || !position) return
+    if (!visible || !position) return
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
+      if (e.key === 'Escape') onClose()
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [visible, onClose, position])
 
-  // SSR guard + basic visibility guard
-  if (typeof document === "undefined" || !visible || !position) return null
-
-  // iOS-specific adjustments
-  if (isIOS && !hasBeenShownRef.current) {
-    hasBeenShownRef.current = true
+  // Enhanced positioning for all browsers
+  useEffect(() => {
+    if (!visible || !menuRef.current) return
     
-    // Force a re-render to work around iOS rendering quirks
-    setTimeout(() => {
-      hasBeenShownRef.current = false
-    }, 100)
-  }
-
-  // Enhanced clamping function for iOS
-  const clampToViewport = (x, y, w = 360, h = 120, pad = 8) => {
-    const vw = window.innerWidth
-    const vh = window.innerHeight
+    const calculatePosition = () => {
+      if (!position) return;
+      
+      const rect = menuRef.current.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      
+      let adjustedX = position.x;
+      let adjustedY = position.y;
+      const padding = 10;
+      
+      // Adjust for Safari viewport quirks
+      const visualVH = window.visualViewport?.height || vh;
+      const visualVW = window.visualViewport?.width || vw;
+      
+      // Right edge check
+      if (position.x + rect.width/2 > visualVW) {
+        adjustedX = visualVW - rect.width/2 - padding;
+      }
+      // Left edge check
+      else if (position.x - rect.width/2 < 0) {
+        adjustedX = rect.width/2 + padding;
+      }
+      
+      // Bottom edge check (Safari-specific)
+      if (isSafari && position.y - rect.height < 0) {
+        adjustedY = visualVH - rect.height - padding;
+      }
+      // Standard top edge check
+      else if (!isSafari && position.y - rect.height < 0) {
+        adjustedY = rect.height + padding;
+      }
+      
+      setFinalPosition({ x: adjustedX, y: adjustedY });
+    };
     
-    // Adjust for iOS viewport quirks
-    const safeVH = isIOS ? Math.max(vh, window.visualViewport?.height || vh) : vh
-    const safeY = isIOS ? Math.min(y, safeVH - 50) : y
+    // Safari needs extra calculation time
+    const timer = setTimeout(calculatePosition, isSafari ? 100 : 0);
+    return () => clearTimeout(timer);
+  }, [position, visible, isSafari]);
 
-    const left = x - w / 2
-    const top = safeY - h
-
-    const clampedLeft = Math.max(pad, Math.min(left, vw - w - pad))
-    const clampedTop = Math.max(pad, Math.min(top, safeVH - h - pad))
-
-    return { 
-      x: clampedLeft + w / 2, 
-      y: clampedTop + h,
-      // Add extra padding at the bottom for iOS
-      bottom: isIOS ? '20px' : 'auto'
-    }
-  }
-
-  const { x, y, bottom } = clampToViewport(
-    Math.round(position.x ?? 0),
-    Math.round(position.y ?? 0)
-  )
+  // SSR guard + visibility check
+  if (typeof document === "undefined" || !visible || !position) return null;
 
   // Handle clicks outside the menu
   const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
+    if (e.target === e.currentTarget) onClose();
   }
 
-  // iOS-specific style adjustments
-  const menuStyle = {
-    position: "fixed",
-    left: `${x}px`,
-    top: `${y}px`,
-    transform: "translate(-50%, -100%)",
-    zIndex: 9999,
-    pointerEvents: "auto",
-    // Add iOS-specific adjustments
-    ...(isIOS && {
-      WebkitOverflowScrolling: 'touch',
-      WebkitTransform: 'translateZ(0)',
-      bottom: bottom,
-      top: 'auto',
-      transform: 'translateX(-50%)',
-      maxWidth: '90vw',
-    })
-  }
+  // Safari-specific styles
+  const safariStyles = {
+    backdrop: {
+      WebkitTapHighlightColor: "transparent",
+      WebkitTouchCallout: "none",
+      backgroundColor: "rgba(0,0,0,0.15)"
+    },
+    menu: {
+      WebkitTransform: "translateZ(0)",
+      willChange: "transform",
+      WebkitOverflowScrolling: "touch",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+      border: "1px solid rgba(0,0,0,0.1)",
+      maxWidth: "90vw",
+      zIndex: 2147483647 // Max z-index for Safari
+    },
+    colorOption: {
+      WebkitTapHighlightColor: "transparent"
+    }
+  };
 
   return createPortal(
     <div
@@ -117,25 +127,26 @@ const AnnotationContextMenu = ({ position, onAddAnnotation, onClose, visible = t
         left: 0,
         width: "100vw",
         height: "100vh",
-        zIndex: 9998,
-        // iOS-specific backdrop
-        ...(isIOS && {
-          backgroundColor: 'rgba(0,0,0,0.2)',
-          touchAction: 'none',
-        })
+        zIndex: 2147483646, // Just below menu
+        ...(isSafari && safariStyles.backdrop)
       }}
       onClick={handleBackdropClick}
-      // Prevent iOS touch events from propagating
-      onTouchMove={e => isIOS && e.preventDefault()}
+      onTouchMove={e => e.preventDefault()}
     >
       <div
+        ref={menuRef}
         className="annotation-context-menu"
-        style={menuStyle}
-        data-test="annotation-context-menu"
+        style={{
+          position: "fixed",
+          left: `${finalPosition.x}px`,
+          top: `${finalPosition.y}px`,
+          transform: "translate(-50%, -100%)",
+          pointerEvents: "auto",
+          ...(isSafari && safariStyles.menu)
+        }}
         role="dialog"
         aria-label="Annotation menu"
         onClick={(e) => e.stopPropagation()}
-        // iOS-specific touch handlers
         onTouchStart={e => e.stopPropagation()}
         onTouchMove={e => e.stopPropagation()}
         onTouchEnd={e => e.stopPropagation()}
@@ -161,25 +172,30 @@ const AnnotationContextMenu = ({ position, onAddAnnotation, onClose, visible = t
               style={{ 
                 backgroundColor: color.value,
                 border: '2px solid transparent',
-                transition: 'all 0.2s ease',
+                transition: 'transform 0.2s ease',
+                ...(isSafari && safariStyles.colorOption)
               }}
               onClick={() => {
-                onAddAnnotation(color.value)
-                onClose()
+                onAddAnnotation(color.value);
+                onClose();
               }}
               title={color.name}
               aria-label={`Highlight ${color.name}`}
               type="button"
-              // iOS-specific touch feedback
-              onTouchStart={e => e.currentTarget.style.transform = 'scale(1.1)'}
-              onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
+              onTouchStart={e => {
+                e.currentTarget.style.transform = 'scale(1.15)';
+                e.currentTarget.style.transition = 'transform 0.1s ease';
+              }}
+              onTouchEnd={e => {
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
             />
           ))}
         </div>
       </div>
     </div>,
     document.body
-  )
-}
+  );
+};
 
-export default AnnotationContextMenu
+export default AnnotationContextMenu;
