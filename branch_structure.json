@@ -1,0 +1,15 @@
+{
+  "default_branch": "fix-epub-tts",
+  "branches": [
+    "fix-epub-tts",
+    "main"
+  ],
+  "parent": {
+    "fix-epub-tts": null,
+    "main": "fix-epub-tts"
+  },
+  "order": [
+    "fix-epub-tts",
+    "main"
+  ]
+}
